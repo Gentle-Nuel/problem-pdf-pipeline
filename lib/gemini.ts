@@ -1,27 +1,35 @@
 import { requireEnv } from "./env.js";
+import { searchWeb } from "./tavily.js";
 
 // gemini-2.5-flash 404'd ("no longer available to new users");
-// gemini-flash-latest and gemini-flash-lite-latest both still 429'd — the
-// rate-limit dashboard shows the higher quota (RPM 15 / RPD 500) only on
-// the newer generation explicitly (Gemini 3.1/3.5 Flash Lite), while
-// Gemini 2.5 Flash Lite shares the same restrictive RPD 20 as regular
-// Flash. The "-latest" aliases apparently don't resolve to the
-// high-quota model, so pinning directly instead of aliasing — accepting
-// the staleness risk this time in exchange for a quota tier confirmed via
-// both the model list and the rate-limit table.
+// gemini-flash-latest and gemini-flash-lite-latest both resolved to
+// models with a restrictive free-tier quota (RPM 5 / RPD 20) and 429'd.
+// gemini-3.5-flash-lite confirmed via the account's live rate-limit
+// dashboard to have a much higher grant (RPM 15 / RPD 500) — the newer
+// Flash-Lite generation gets that tier, older ones and regular Flash don't.
 const MODEL = "gemini-3.5-flash-lite";
 
-const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide, drawing on your training knowledge — live web search is not available in this pipeline right now. Write your findings as clean Markdown with exactly these sections, in this order:
+const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide. You've been given real web search results below — use them as your primary source for accuracy and for the Resources section. Write your findings as clean Markdown with exactly these sections, in this order:
 
 ## Problem
 ## Root Causes
 ## Step-by-Step Fix
 ## Resources
 
-Be concrete and specific rather than generic — this content becomes a guide someone is paying for. Under Resources, only list sources you're genuinely confident actually exist — well-known official documentation, standards bodies, major publications. Do not invent plausible-sounding URLs or article titles. If you're not confident about something, say so rather than guessing.`;
+Be concrete and specific rather than generic — this content becomes a guide someone is paying for. Under Resources, cite only the URLs actually provided in the search results below — do not invent sources. If the search results don't cover something you need, say so rather than guessing.`;
 
 export async function researchProblem(problemStatement: string, examples: string[]): Promise<string> {
   const apiKey = requireEnv("GEMINI_API_KEY");
+
+  // Gemini's own search grounding tool is billing-gated even on this
+  // otherwise-free account (confirmed: identical request 429'd with
+  // grounding on, succeeded immediately with it off). Tavily's free tier
+  // (1,000 searches/month, no card) fills that gap — search ourselves,
+  // hand the model real results instead of relying on training knowledge.
+  const searchResults = await searchWeb(problemStatement);
+  const searchBlock = searchResults.length
+    ? searchResults.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.content}`).join("\n\n")
+    : "(no search results found)";
 
   const exampleBlock = examples.length
     ? `\n\nHow people are actually describing this problem:\n${examples.map((e) => `- ${e.split("\n\n")[0]}`).join("\n")}`
@@ -39,23 +47,11 @@ export async function researchProblem(problemStatement: string, examples: string
             role: "user",
             parts: [
               {
-                text: `Research this problem and write the guide content: "${problemStatement}"${exampleBlock}`,
+                text: `Research this problem and write the guide content: "${problemStatement}"${exampleBlock}\n\nWeb search results:\n${searchBlock}`,
               },
             ],
           },
         ],
-        // Search grounding disabled: confirmed by testing that it's
-        // specifically gated (likely requires billing) even though base
-        // generation works fine on the free tier — four different models
-        // all 429'd with grounding on, then succeeded immediately with it
-        // off. Content is generated from training knowledge, not live
-        // search; the system prompt above is written to reduce (not
-        // eliminate) the resulting risk of fabricated citations under
-        // "Resources" — spot-check links before publishing anything built
-        // on this. Revisit once billing is available on either provider,
-        // or bolt on a separate free search API and inject results into
-        // the prompt manually.
-        // tools: [{ google_search: {} }],
       }),
     },
   );
