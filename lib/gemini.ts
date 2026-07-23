@@ -46,12 +46,12 @@ export async function researchProblem(problemStatement: string, examples: string
             ],
           },
         ],
-        // Grounds the response in live Google Search results rather than
-        // training data alone. Tool shape per my last verified reference
-        // (Gemini 2.0+ uses the bare `google_search` tool, replacing the
-        // older `googleSearchRetrieval` config) — flag if this 400s,
-        // Google's grounding-tool syntax has moved across API versions.
-        tools: [{ google_search: {} }],
+        // TEMPORARILY DISABLED — diagnosing repeated 429s across four
+        // different models. Search grounding may specifically require
+        // billing enabled even on an otherwise-free-tier account (separate
+        // gate from base text generation) — testing plain generation
+        // without it to isolate whether that's the actual blocker.
+        // tools: [{ google_search: {} }],
       }),
     },
   );
