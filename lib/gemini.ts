@@ -1,12 +1,12 @@
 import { requireEnv } from "./env.js";
 
-// Model naming: my last verified reference point is training data from
-// around January 2026, and I couldn't fetch Google's current docs live
-// from this sandbox (same network restriction as everything else in this
-// project). gemini-2.5-flash was the standard free-tier-friendly default
-// around that time. If this 404s, check the model picker at
-// aistudio.google.com and swap the string below.
-const MODEL = "gemini-2.5-flash";
+// gemini-2.5-flash (the original guess here) 404s with "no longer
+// available to new users" — Google restricts some pinned model versions to
+// pre-existing projects even while they stay listed in the general
+// catalog. Using the rolling "-latest" alias instead of a pinned version
+// avoids hitting this same wall again as models rotate — confirmed
+// available via GET https://generativelanguage.googleapis.com/v1beta/models?key=...
+const MODEL = "gemini-flash-latest";
 
 const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide. Use Google Search grounding to find accurate, current, and specific information: root causes, official documentation, and community-verified fixes.
 
