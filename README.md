@@ -9,7 +9,7 @@ Full build spec, guardrails, schema, and build order: [`docs/spec.md`](docs/spec
 Build order (see spec for detail):
 
 - [x] 1. Repo + Supabase schema + Voyage AI key
-- [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (code in — needs live test, see below)
+- [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
 - [ ] 3. Clustering + ranking cron (Voyage AI embeddings)
 - [ ] 4. Telegram bot: list clusters, approve action
 - [ ] 5. Research step (Claude + web search)
@@ -46,5 +46,7 @@ Reddit was the original plan here but got dropped — its Responsible Builder Po
 2. Set `STACKEXCHANGE_KEY` in `.env` and in your Vercel project's environment variables (leave blank to use the low unauthenticated quota).
 3. Optionally set `CRON_SECRET` (any random string) in both places — without it, the endpoint is publicly callable by anyone who finds the URL.
 4. Deploy to Vercel, or run `npx vercel dev` locally, then hit `/api/scrape-stackexchange` (add `Authorization: Bearer <CRON_SECRET>` header if you set one). It returns a JSON summary of fetched/submitted/blocked counts per site — check `raw_problems` in the Supabase table editor to confirm rows landed.
+
+**Confirmed working (2026-07-23):** deployed to Vercel, hit the endpoint directly — 24/25 `diy` questions and 25/25 `cooking` questions landed in `raw_problems` (1 caught by the regulated-advice blocklist). If you disabled "Automatically expose new tables" during Supabase project setup, you also need `supabase/migrations/0003_grant_service_role.sql` — that toggle skips granting table privileges to `service_role` too, not just `anon`/`authenticated`, and inserts fail with "permission denied" without it.
 
 I couldn't test this against the live Stack Exchange/Supabase APIs myself — this sandbox's network is restricted to an allowlist that doesn't include either. Code typechecks clean; the above is the real test.
