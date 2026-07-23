@@ -7,20 +7,28 @@ export interface StackExchangeQuestion {
   tags: string[];
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
+function decodeHtmlEntities(text: string): string {
+  return text
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&#39;/g, "'");
+}
+
+function stripHtml(html: string): string {
+  return decodeHtmlEntities(html.replace(/<[^>]*>/g, " "))
     .replace(/\s+/g, " ")
     .trim();
 }
 
 export function questionText(q: StackExchangeQuestion): string {
-  return `${q.title}\n\n${q.body ? stripHtml(q.body) : ""}`.trim();
+  // Stack Exchange HTML-escapes titles too, not just bodies — without this,
+  // representative_text (which becomes the actual PDF title / Gumroad
+  // listing copy per the spec) would ship with literal &quot;/&#39; in it.
+  const title = decodeHtmlEntities(q.title).trim();
+  const body = q.body ? stripHtml(q.body) : "";
+  return `${title}\n\n${body}`.trim();
 }
 
 // Public read endpoints need no auth. STACKEXCHANGE_KEY (from
