@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/scrape-reddit", "schedule": "0 6 * * *" }
+  ]
+}
