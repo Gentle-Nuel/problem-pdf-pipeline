@@ -5,7 +5,7 @@
 // was already an accepted tradeoff for this specific low-effort
 // validation layer, not a new risk being introduced here.
 export async function fetchAutocompleteSuggestions(query: string): Promise<string[]> {
-  const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`;
+  const url = `https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(query)}`;
   const res = await fetch(url);
 
   if (!res.ok) {
