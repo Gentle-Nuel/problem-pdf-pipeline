@@ -91,17 +91,20 @@ Same caveat as the previous steps — couldn't test any of this against live Tel
 
 **Confirmed working (2026-07-23):** hit a `column problem_clusters.telegram_notified_at does not exist` error on the first attempt — migration `0005` hadn't been applied yet. After running it, `/api/cluster-problems` sent 5 clusters to Telegram with correct titles/scores/source links and working Approve buttons; tapping Approve updated the message to "✅ Approved" and flipped `status` to `approved` in Supabase. Full loop confirmed end to end.
 
-## Step 5: Research (Claude + web search)
+## Step 5: Research (Gemini + Google Search grounding)
 
-Also folded into `api/cluster-problems.ts` (`lib/researchClusters.ts`) rather than a third cron, for the same Hobby-plan cron-limit reason as notifications — it runs at the end of every invocation, picks up the top `RESEARCH_PER_RUN` (`lib/config.ts`, starts at 3) clusters with `status = 'approved'`, and for each one calls Claude (`claude-opus-4-8`, adaptive thinking, `effort: high`, streamed) with the server-side `web_search` tool. No manual search loop needed — web search is server-side, so Claude searches and synthesizes in one call. The result (Markdown: Problem / Root Causes / Step-by-Step Fix / Resources) is saved to `research_docs`, and the cluster's `status` advances to `researched`.
+Also folded into `api/cluster-problems.ts` (`lib/researchClusters.ts`) rather than a third cron, for the same Hobby-plan cron-limit reason as notifications — it runs at the end of every invocation, picks up the top `RESEARCH_PER_RUN` (`lib/config.ts`, starts at 3) clusters with `status = 'approved'`, and for each one calls Gemini (`gemini-2.5-flash`, `lib/gemini.ts`) with Google Search grounding enabled. The result (Markdown: Problem / Root Causes / Step-by-Step Fix / Resources) is saved to `research_docs`, and the cluster's `status` advances to `researched`.
 
-Batch size is kept small (3) because each call involves web search plus thinking and can run for a while — Vercel's function timeout on this deployment showed a 5-minute ceiling in earlier logs, so a handful of research calls per run stays comfortably inside that.
+**Provider note:** the original plan was Claude with its server-side web search tool. Anthropic's console requires a paid credit purchase before a key works at all; Gemini's free tier via Google AI Studio doesn't need a payment method, so this step runs on Gemini instead. The original Claude implementation is recoverable from git history (`lib/claude.ts` in the commit that added step 5) if you fund the Anthropic key later and want to switch back — `lib/researchClusters.ts` would just need its import changed back.
+
+**Bigger caveat than usual on this one:** I couldn't verify Google's current Gemini API shape live either (same network restriction hit `ai.google.dev` directly) — model name, request/response shape, and the Google Search grounding tool's exact syntax are all from training data, not confirmed against current docs. This is more likely than most of what we've built so far to need a live fix-up round together.
+
+Batch size is kept small (3) because each call can take a while — Vercel's function timeout on this deployment showed a 5-minute ceiling in earlier logs, so a handful of research calls per run stays comfortably inside that.
 
 **To wire it up:**
-1. Get an API key at [console.anthropic.com](https://console.anthropic.com) (or reuse one if you already have Claude API access).
-2. Set `ANTHROPIC_API_KEY` in Vercel's environment variables, then redeploy.
+1. Get a free API key at [aistudio.google.com](https://aistudio.google.com) (sign in with a Google account, no payment method needed) — look for "Get API key."
+2. Set `GEMINI_API_KEY` in Vercel's environment variables, then redeploy.
 3. Approve at least one cluster in Telegram if you haven't already (step 4).
 4. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` again — the JSON response now includes a `researched` count.
 5. Check `research_docs` in Supabase — should have a new row with real Markdown content for the approved cluster; that cluster's `status` in `problem_clusters` should now read `researched`.
-
-Same caveat as every step so far — couldn't test this against the live Anthropic API from this sandbox. Code typechecks clean; the real test is your run.
+6. If it errors, send me the Vercel logs the same way as before — given the caveat above, this one's genuinely likely to need a round of fixing based on the actual API response.

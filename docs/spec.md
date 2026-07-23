@@ -12,7 +12,7 @@ An automated pipeline that finds real problems people are searching for online (
 - **Hosting/compute:** Vercel (cron functions, API routes) — Puppeteer PDF rendering must use `@sparticuz/chromium`, not full Puppeteer, or the function exceeds Vercel's size/memory limits. Cron frequency and function timeout are gated by plan (Hobby = daily cron only, short timeouts) — budget for Pro from the start if the pipeline needs to run more than once a day or steps run long.
 - **Database:** Supabase (Postgres)
 - **Control interface:** Telegram bot
-- **AI:** Claude (research step); **Voyage AI** for embeddings (Anthropic's recommended partner — Anthropic itself has no embeddings endpoint)
+- **AI:** Gemini (research step — swapped from the original Claude plan: Anthropic's console requires a paid credit purchase up front, Gemini's free tier via aistudio.google.com doesn't. Easy to swap back later once funded — the original Claude implementation is in git history); **Voyage AI** for embeddings (Anthropic's recommended partner — Anthropic itself has no embeddings endpoint)
 - **Sales:** Gumroad (API for publishing, or manual upload initially)
 - **PDF generation:** Puppeteer via `@sparticuz/chromium` (HTML → PDF)
 - **Repo:** standalone repo, separate from any existing app (this pipeline is unrelated to any other project)
@@ -92,7 +92,7 @@ create table pdfs (
 1. **Scrape** — Vercel cron function polls the Stack Exchange API for target sites/tags, writes matches into `raw_problems`. Applies the regulated-advice blocklist here (or at approval, see Guardrails).
 2. **Cluster + rank** — cron function pulls unclustered `raw_problems`, uses embeddings to group near-duplicates, computes score from `source_count` + `total_engagement`, writes/updates `problem_clusters`.
 3. **Approve (via Telegram bot)** — bot posts top-ranked clusters to the builder's phone; a tap sets `status = 'approved'`.
-4. **Research** — on approval, a function calls Claude (with web search) to research the approved problem, writes findings to `research_docs`.
+4. **Research** — on approval, a function calls Gemini (with Google Search grounding) to research the approved problem, writes findings to `research_docs`.
 5. **Draft + generate PDF** — research is structured into a guide (problem, causes, step-by-step fix, resources) and rendered to PDF. Template includes the standard disclaimer boilerplate.
 6. **Review (via Telegram bot)** — bot sends the rendered PDF (or a summary) to the builder's phone before it goes live. A second tap is required to actually push to Gumroad. This is a deliberate gap-fill: without it, a shallow or wrong guide could go live unreviewed under the builder's store.
 7. **Publish** — on approval, PDF pushed to Gumroad via API (or bot sends the finished PDF + suggested listing copy for manual upload while the API integration is still basic).
@@ -137,7 +137,7 @@ create table blog_posts (
 2. Stack Exchange scraper → `raw_problems` (starting sites: diy, cooking) + regulated-advice blocklist filter
 3. Clustering + ranking cron function (using Voyage AI embeddings)
 4. Telegram bot: list top clusters, approve action
-5. Research step (Claude + web search) triggered by approval
+5. Research step (Gemini + Google Search grounding) triggered by approval
 6. PDF generation from research (using `@sparticuz/chromium`) + pricing tier logic + disclaimer boilerplate
 7. Pre-publish review tap (Telegram bot sends rendered PDF/summary, second tap to confirm)
 8a. Companion blog draft + humanize pipeline, `blog_posts` table

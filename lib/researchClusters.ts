@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { researchProblem } from "./claude.js";
+import { researchProblem } from "./gemini.js";
 import { RESEARCH_PER_RUN } from "./config.js";
 
 // Researches the highest-scoring approved-but-unresearched clusters,
