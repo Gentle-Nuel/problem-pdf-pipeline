@@ -32,3 +32,7 @@ export const RESEARCH_PER_RUN = 3;
 // Launching headless Chromium per PDF is the heaviest single step in this
 // pipeline — kept small for the same execution-time-budget reason.
 export const PDF_PER_RUN = 3;
+
+// How many not-yet-PAA-checked clusters to cross-validate against Google's
+// autocomplete per run — see lib/scrapeGooglePaa.ts.
+export const GOOGLE_PAA_CLUSTERS_PER_RUN = 5;

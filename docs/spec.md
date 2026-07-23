@@ -19,7 +19,7 @@ An automated pipeline that finds real problems people are searching for online (
 
 ## Data sources (MVP — in priority order)
 1. **Stack Exchange network** — official API (`api.stackexchange.com`), no auth required to read public questions, content is CC BY-SA licensed with commercial reuse explicitly permitted (with attribution). Question score is the engagement signal. Starting sites: `diy.stackexchange.com` (home/DIY) and `cooking.stackexchange.com`. Personal Finance & Money SE was deliberately excluded — see Guardrails below.
-2. **Google autocomplete / "People also ask"** — free, low-effort validation layer. Scraping SERPs technically violates Google's ToS but enforcement is soft; low risk.
+2. **Google autocomplete** — free, low-effort validation layer. Scraping this technically violates Google's ToS but enforcement is soft; low risk. Note: this was in the original spec but fell through the cracks — it never got its own numbered build-order step, so it went unbuilt through steps 2–6 despite `problem_clusters.score` depending on `source_count`, which was always 1 (single source) until this was added. Implemented as a cross-validation pass rather than open-ended discovery: for each existing cluster not yet checked, query autocomplete with its `representative_text`, insert any suggestions as new `raw_problems` rows (`source = 'google_paa'`), and let the existing clustering cron merge them in if similar enough — no changes to clustering/scoring logic itself.
 
 **Cut from MVP:**
 - **Reddit** — was the original primary source. Dropped after reviewing Reddit's Responsible Builder Policy, which prohibits commercializing data pulled via the API without express written approval — this pipeline's entire output (paid PDFs, monetized companion blog) is exactly that. Revisit only via Reddit's own commercial-approval process (contact form linked from the policy), as an addition alongside Stack Exchange, not a replacement for it.
@@ -135,6 +135,7 @@ create table blog_posts (
 
 1. Standalone repo setup + Supabase schema (the SQL above) + Voyage AI API key/connection
 2. Stack Exchange scraper → `raw_problems` (starting sites: diy, cooking) + regulated-advice blocklist filter
+2b. Google autocomplete cross-validation → `raw_problems` (`source = 'google_paa'`) — added after steps 2–6 were already built, closing a gap where this was in the spec's Data sources but never made it onto this list
 3. Clustering + ranking cron function (using Voyage AI embeddings)
 4. Telegram bot: list top clusters, approve action
 5. Research step (Gemini + Google Search grounding) triggered by approval

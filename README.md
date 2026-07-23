@@ -10,6 +10,7 @@ Build order (see spec for detail):
 
 - [x] 1. Repo + Supabase schema + Voyage AI key
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
+- [x] 2b. Google autocomplete cross-validation (added after steps 2–6 — was in the spec's Data sources but never got a build-order step; `source_count` had been stuck at 1 for every cluster until this) (code in — needs live test, see below)
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
 - [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
@@ -50,6 +51,21 @@ Reddit was the original plan here but got dropped — its Responsible Builder Po
 **Confirmed working (2026-07-23):** deployed to Vercel, hit the endpoint directly — 24/25 `diy` questions and 25/25 `cooking` questions landed in `raw_problems` (1 caught by the regulated-advice blocklist). If you disabled "Automatically expose new tables" during Supabase project setup, you also need `supabase/migrations/0003_grant_service_role.sql` — that toggle skips granting table privileges to `service_role` too, not just `anon`/`authenticated`, and inserts fail with "permission denied" without it.
 
 I couldn't test this against the live Stack Exchange/Supabase APIs myself — this sandbox's network is restricted to an allowlist that doesn't include either. Code typechecks clean; the above is the real test.
+
+## Step 2b: Google autocomplete cross-validation
+
+Added after steps 2–6 were already built and confirmed working — a real gap, not a planned later addition. The original spec listed Google autocomplete/"People also ask" as a secondary validation source, but it never got its own line in the numbered build order, so it just didn't get built. The practical cost: `problem_clusters.score = sourceCount * 100 + totalEngagement` was designed to weight cross-source validation heavily, but with only one source ever feeding the pipeline, `source_count` had been `1` for every single cluster — that `× 100` term was a constant, not a differentiator.
+
+`lib/scrapeGooglePaa.ts` (called from the end of `api/scrape-stackexchange.ts` — same cron slot, no new cron needed) picks up to `GOOGLE_PAA_CLUSTERS_PER_RUN` (`lib/config.ts`, starts at 5) clusters that haven't been checked yet (`problem_clusters.paa_checked_at is null`), queries Google's autocomplete endpoint with each cluster's `representative_text`, filters suggestions through the same regulated-advice blocklist, and inserts them as new `raw_problems` rows with `source = 'google_paa'`. Deliberately built to be purely additive — it never touches clustering, scoring, or similarity code. New rows just flow into the existing clustering cron exactly like Stack Exchange rows do; if a suggestion is similar enough to an existing cluster, the clustering logic (unmodified) merges it in, which is what actually increments `source_count` above 1 for the first time.
+
+**To wire it up:**
+1. Run `supabase/migrations/0006_problem_clusters_paa_checked.sql` in the Supabase SQL editor.
+2. No new API key needed — Google's autocomplete endpoint takes plain unauthenticated requests.
+3. Push/redeploy, then trigger `/api/scrape-stackexchange?secret=<CRON_SECRET>` — response now includes a `googlePaa: { checked, submitted }` field.
+4. Check `raw_problems` for new rows with `source = google_paa`.
+5. Run `/api/cluster-problems?secret=<CRON_SECRET>` afterward (or wait for its own cron) and check whether any cluster's `source_count` actually goes above 1 — that's the real proof this closed the gap, not just that rows landed.
+
+Couldn't test this against the live Google endpoint from this sandbox, same caveat as everything else — code typechecks clean, and nothing above this addition in `api/scrape-stackexchange.ts` was touched, so the already-confirmed Stack Exchange scraping shouldn't be at risk even if this part needs a fix-up round.
 
 ## Step 3: Clustering + ranking
 

@@ -4,9 +4,13 @@ import { fetchSiteQuestions, questionText } from "../lib/stackexchange.js";
 import { isRegulatedAdvice } from "../lib/blocklist.js";
 import { SCRAPE_TARGETS, SCRAPE_LIMIT_PER_TARGET } from "../lib/config.js";
 import { isAuthorizedCronRequest } from "../lib/cronAuth.js";
+import { scrapeGooglePaa } from "../lib/scrapeGooglePaa.js";
 
 // Triggered by Vercel Cron (see vercel.json). CRON_SECRET, if set, is
 // required so the endpoint can't be triggered by anyone who finds the URL.
+// Name is now slightly stale — this also runs the Google PAA
+// cross-validation step (see below) — but the deployed cron path and
+// Vercel function name aren't worth changing just for that.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!isAuthorizedCronRequest(req)) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -53,5 +57,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     summary[key] = { fetched: questions.length, submitted: rows.length, blocked };
   }
 
-  return res.status(200).json({ ok: true, summary });
+  // Cross-validate existing clusters against Google's autocomplete —
+  // purely additive: writes new raw_problems rows for the existing
+  // clustering cron to pick up, never touches the Stack Exchange results
+  // above (already committed to the DB by this point regardless of
+  // whether this step succeeds).
+  const paa = await scrapeGooglePaa(supabase);
+
+  return res.status(200).json({ ok: true, summary, googlePaa: paa });
 }
