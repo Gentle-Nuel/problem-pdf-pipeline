@@ -1,7 +1,7 @@
 # Problem-to-PDF Pipeline — Build Spec
 
 ## What this is
-An automated pipeline that finds real problems people are searching for online (starting with Reddit), ranks them by cross-platform demand, researches solutions, generates a detailed PDF guide, and publishes it for sale on Gumroad. Built to run entirely in the cloud (Vercel + Supabase) so it needs no PC or local power to operate once deployed. Controlled and triggered from a phone via a Telegram bot.
+An automated pipeline that finds real problems people are searching for online (starting with the Stack Exchange network), ranks them by cross-platform demand, researches solutions, generates a detailed PDF guide, and publishes it for sale on Gumroad. Built to run entirely in the cloud (Vercel + Supabase) so it needs no PC or local power to operate once deployed. Controlled and triggered from a phone via a Telegram bot.
 
 ## Constraints driving the design
 - Builder has unreliable electricity access — the running system must not depend on a local machine being on.
@@ -18,17 +18,19 @@ An automated pipeline that finds real problems people are searching for online (
 - **Repo:** standalone repo, separate from any existing app (this pipeline is unrelated to any other project)
 
 ## Data sources (MVP — in priority order)
-1. **Reddit** — official API, real complaints with upvote signal. Note: Reddit's 2023 API pricing means light/non-commercial-scale polling is fine, but this may need billing once volume grows as a business.
+1. **Stack Exchange network** — official API (`api.stackexchange.com`), no auth required to read public questions, content is CC BY-SA licensed with commercial reuse explicitly permitted (with attribution). Question score is the engagement signal. Starting sites: `diy.stackexchange.com` (home/DIY) and `cooking.stackexchange.com`. Personal Finance & Money SE was deliberately excluded — see Guardrails below.
 2. **Google autocomplete / "People also ask"** — free, low-effort validation layer. Scraping SERPs technically violates Google's ToS but enforcement is soft; low risk.
 
-**Cut from MVP:** Quora and Amazon/app-store reviews both explicitly prohibit scraping in their ToS, and Amazon actively IP-blocks and has pursued scrapers legally. Not worth the risk for sources that were only secondary/tertiary anyway. Revisit later only via an official API or paid data provider if that signal is still wanted.
+**Cut from MVP:**
+- **Reddit** — was the original primary source. Dropped after reviewing Reddit's Responsible Builder Policy, which prohibits commercializing data pulled via the API without express written approval — this pipeline's entire output (paid PDFs, monetized companion blog) is exactly that. Revisit only via Reddit's own commercial-approval process (contact form linked from the policy), as an addition alongside Stack Exchange, not a replacement for it.
+- Quora and Amazon/app-store reviews both explicitly prohibit scraping in their ToS, and Amazon actively IP-blocks and has pursued scrapers legally. Not worth the risk for sources that were only secondary/tertiary anyway. Revisit later only via an official API or paid data provider if that signal is still wanted.
 
 AnswerThePublic / AlsoAsked — optional later addition, not a dependency.
 
 ## Guardrails (content & liability)
 Added now, before the first guide is ever generated, so these don't get discovered the hard way after something's already been sold.
 
-- **Regulated-advice exclusion.** Maintain a keyword/subreddit blocklist for health, legal, and financial advice categories (e.g. medical symptoms, legal disputes, investment/loan advice). Checked at scrape or approval time — matches get skipped or flagged, never clustered into the publishable pipeline. Auto-generated "expert" guidance sold for money in these categories is a materially different liability class than a "fix your printer" PDF.
+- **Regulated-advice exclusion.** Maintain a keyword/site blocklist for health, legal, and financial advice categories (e.g. medical symptoms, legal disputes, investment/loan advice). Checked at scrape or approval time — matches get skipped or flagged, never clustered into the publishable pipeline. Auto-generated "expert" guidance sold for money in these categories is a materially different liability class than a "fix your printer" PDF. This is also why Personal Finance & Money SE isn't a scrape target: its highest-engagement content is largely the kind of advice this blocklist exists to keep out, so pointing the scraper at the whole site would mean relying on the blocklist as a primary filter rather than a backstop — better to just not source from there.
 - **Standard disclaimer.** Every PDF and blog post template carries fixed boilerplate: informational only, not professional advice, consult a qualified professional for the relevant domain. Applies to all published content regardless of category — cheap insurance, no reason to make it conditional.
 - **Humanize pass boundary.** The blog pipeline's humanize step (see below) is stylistic only — sentence rhythm, concrete detail, editorial tone. It must not fabricate personal experience, credentials, or testimonials the builder doesn't actually have. "A real opinion" means genuine editorial framing on the topic, never an invented backstory or false claim of expertise.
 
@@ -40,7 +42,7 @@ Added now, before the first guide is ever generated, so these don't get discover
 -- Raw problems pulled directly from sources
 create table raw_problems (
   id uuid primary key default gen_random_uuid(),
-  source text not null,              -- 'reddit', 'google_paa', etc.
+  source text not null,              -- 'stackexchange', 'google_paa', etc.
   source_url text,
   raw_text text not null,
   engagement_score int default 0,    -- upvotes, review count, etc.
@@ -87,7 +89,7 @@ create table pdfs (
 
 ## Pipeline stages
 
-1. **Scrape** — Vercel cron function polls Reddit API for target subreddits/keywords, writes matches into `raw_problems`. Applies the regulated-advice blocklist here (or at approval, see Guardrails).
+1. **Scrape** — Vercel cron function polls the Stack Exchange API for target sites/tags, writes matches into `raw_problems`. Applies the regulated-advice blocklist here (or at approval, see Guardrails).
 2. **Cluster + rank** — cron function pulls unclustered `raw_problems`, uses embeddings to group near-duplicates, computes score from `source_count` + `total_engagement`, writes/updates `problem_clusters`.
 3. **Approve (via Telegram bot)** — bot posts top-ranked clusters to the builder's phone; a tap sets `status = 'approved'`.
 4. **Research** — on approval, a function calls Claude (with web search) to research the approved problem, writes findings to `research_docs`.
@@ -132,7 +134,7 @@ create table blog_posts (
 ## Suggested build order for Claude Code sessions
 
 1. Standalone repo setup + Supabase schema (the SQL above) + Voyage AI API key/connection
-2. Reddit scraper → `raw_problems` (single subreddit/keyword to start) + regulated-advice blocklist filter
+2. Stack Exchange scraper → `raw_problems` (starting sites: diy, cooking) + regulated-advice blocklist filter
 3. Clustering + ranking cron function (using Voyage AI embeddings)
 4. Telegram bot: list top clusters, approve action
 5. Research step (Claude + web search) triggered by approval

@@ -1,6 +1,6 @@
 # Problem-to-PDF Pipeline
 
-Finds real problems people are searching for online (starting with Reddit), ranks them by cross-platform demand, researches solutions with Claude, generates a PDF guide, and publishes it for sale on Gumroad. Runs entirely on Vercel + Supabase — no local machine required once deployed — and is controlled from a phone via a Telegram bot.
+Finds real problems people are searching for online (starting with the Stack Exchange network), ranks them by cross-platform demand, researches solutions with Claude, generates a PDF guide, and publishes it for sale on Gumroad. Runs entirely on Vercel + Supabase — no local machine required once deployed — and is controlled from a phone via a Telegram bot.
 
 Full build spec, guardrails, schema, and build order: [`docs/spec.md`](docs/spec.md).
 
@@ -9,7 +9,7 @@ Full build spec, guardrails, schema, and build order: [`docs/spec.md`](docs/spec
 Build order (see spec for detail):
 
 - [x] 1. Repo + Supabase schema + Voyage AI key
-- [x] 2. Reddit scraper → `raw_problems` + regulated-advice blocklist (code in — needs live test, see below)
+- [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (code in — needs live test, see below)
 - [ ] 3. Clustering + ranking cron (Voyage AI embeddings)
 - [ ] 4. Telegram bot: list clusters, approve action
 - [ ] 5. Research step (Claude + web search)
@@ -32,17 +32,19 @@ Build order (see spec for detail):
 
 - `docs/spec.md` — the full build spec: pipeline stages, schema, guardrails, pricing strategy, build order.
 - `supabase/migrations/` — SQL schema, applied in order.
-- `lib/` — shared server-side helpers (Supabase client, env access, Reddit client, blocklist) used by the cron/API functions.
+- `lib/` — shared server-side helpers (Supabase client, env access, Stack Exchange client, blocklist) used by the cron/API functions.
 - `api/` — Vercel serverless functions (cron jobs, bot webhook, etc.).
 
-## Step 2: Reddit scraper
+## Step 2: Stack Exchange scraper
 
-`api/scrape-reddit.ts` is a Vercel Cron function (see `vercel.json`, runs daily at 06:00 UTC) that pulls the newest posts from the subreddits/keywords in `lib/config.ts` (starts with just `r/techsupport`), drops anything the blocklist flags as regulated-advice content (`lib/blocklist.ts`), and upserts the rest into `raw_problems` — re-running it is safe, duplicates are skipped via the unique constraint on `source_url` (`supabase/migrations/0002_raw_problems_source_url_unique.sql`, run this one too).
+`api/scrape-stackexchange.ts` is a Vercel Cron function (see `vercel.json`, runs daily at 06:00 UTC) that pulls the highest-voted questions from the last 6 months on the sites/tags in `lib/config.ts` (starts with `diy.stackexchange.com` and `cooking.stackexchange.com`), drops anything the blocklist flags as regulated-advice content (`lib/blocklist.ts`), and upserts the rest into `raw_problems` — re-running it is safe, duplicates are skipped via the unique constraint on `source_url` (`supabase/migrations/0002_raw_problems_source_url_unique.sql`, run this one too).
+
+Reddit was the original plan here but got dropped — its Responsible Builder Policy prohibits commercializing data pulled via the API without express written approval, which this whole pipeline (paid PDFs, monetized blog) would trip. Stack Exchange content is CC BY-SA licensed with commercial reuse explicitly allowed, so it doesn't have that problem. See `docs/spec.md` for the full reasoning; Reddit can be revisited later only via its own commercial-approval process, as an addition, not a replacement.
 
 **To wire it up:**
-1. Create a Reddit app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) → "create app" → type **script**. Note the client ID (the string under the app name) and the secret.
-2. Set `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, and `REDDIT_USER_AGENT` (format: `platform:app-id:version (by /u/your-username)`) in `.env` and in your Vercel project's environment variables.
+1. (Optional but recommended) Register an app at [stackapps.com/apps/oauth/register](https://stackapps.com/apps/oauth/register) to get a `key` — raises the shared quota from 300 requests/day to 10,000/day. No secret or OAuth flow needed for reading public questions.
+2. Set `STACKEXCHANGE_KEY` in `.env` and in your Vercel project's environment variables (leave blank to use the low unauthenticated quota).
 3. Optionally set `CRON_SECRET` (any random string) in both places — without it, the endpoint is publicly callable by anyone who finds the URL.
-4. Deploy to Vercel, or run `npx vercel dev` locally, then hit `/api/scrape-reddit` (add `Authorization: Bearer <CRON_SECRET>` header if you set one). It returns a JSON summary of fetched/submitted/blocked counts per subreddit — check `raw_problems` in the Supabase table editor to confirm rows landed.
+4. Deploy to Vercel, or run `npx vercel dev` locally, then hit `/api/scrape-stackexchange` (add `Authorization: Bearer <CRON_SECRET>` header if you set one). It returns a JSON summary of fetched/submitted/blocked counts per site — check `raw_problems` in the Supabase table editor to confirm rows landed.
 
-I couldn't test this against the live Reddit/Supabase APIs myself — this sandbox's network is restricted to an allowlist that doesn't include either. Code typechecks clean; the above is the real test.
+I couldn't test this against the live Stack Exchange/Supabase APIs myself — this sandbox's network is restricted to an allowlist that doesn't include either. Code typechecks clean; the above is the real test.
