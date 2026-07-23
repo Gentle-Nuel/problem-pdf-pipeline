@@ -4,6 +4,7 @@ import { embedTexts } from "../lib/voyage.js";
 import { cosineSimilarity } from "../lib/similarity.js";
 import { computeScore } from "../lib/scoring.js";
 import { CLUSTER_SIMILARITY_THRESHOLD } from "../lib/config.js";
+import { isAuthorizedCronRequest } from "../lib/cronAuth.js";
 
 interface RawProblem {
   id: string;
@@ -21,10 +22,7 @@ interface PoolCluster {
 // Triggered by Vercel Cron (see vercel.json), scheduled after the scrape
 // job so there's new data to work with.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (
-    process.env.CRON_SECRET &&
-    req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isAuthorizedCronRequest(req)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 

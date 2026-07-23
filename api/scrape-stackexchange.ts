@@ -3,14 +3,12 @@ import { getSupabaseClient } from "../lib/supabase.js";
 import { fetchSiteQuestions, questionText } from "../lib/stackexchange.js";
 import { isRegulatedAdvice } from "../lib/blocklist.js";
 import { SCRAPE_TARGETS, SCRAPE_LIMIT_PER_TARGET } from "../lib/config.js";
+import { isAuthorizedCronRequest } from "../lib/cronAuth.js";
 
 // Triggered by Vercel Cron (see vercel.json). CRON_SECRET, if set, is
 // required so the endpoint can't be triggered by anyone who finds the URL.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (
-    process.env.CRON_SECRET &&
-    req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isAuthorizedCronRequest(req)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
