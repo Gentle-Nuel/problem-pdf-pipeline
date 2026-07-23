@@ -11,7 +11,7 @@ Build order (see spec for detail):
 - [x] 1. Repo + Supabase schema + Voyage AI key
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
-- [x] 4. Telegram bot: list clusters, approve action (code in — needs live test, see below)
+- [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
 - [ ] 5. Research step (Claude + web search)
 - [ ] 6. PDF generation + pricing tiers + disclaimer
 - [ ] 7. Pre-publish review tap
@@ -88,3 +88,5 @@ Each run sends the top `CLUSTERS_TO_NOTIFY_PER_RUN` (`lib/config.ts`, starts at 
 8. Tap **Approve** on one — the message should update to show "✅ Approved", and that cluster's `status` should flip to `approved` in Supabase.
 
 Same caveat as the previous steps — couldn't test any of this against live Telegram/Supabase from this sandbox. Code typechecks clean; the real test is your run.
+
+**Confirmed working (2026-07-23):** hit a `column problem_clusters.telegram_notified_at does not exist` error on the first attempt — migration `0005` hadn't been applied yet. After running it, `/api/cluster-problems` sent 5 clusters to Telegram with correct titles/scores/source links and working Approve buttons; tapping Approve updated the message to "✅ Approved" and flipped `status` to `approved` in Supabase. Full loop confirmed end to end.
