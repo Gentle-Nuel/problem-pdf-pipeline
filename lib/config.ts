@@ -18,3 +18,7 @@ export const SCRAPE_LIMIT_PER_TARGET = 25;
 // Supabase: merges that shouldn't have happened -> raise this; obvious
 // duplicates left unmerged -> lower it.
 export const CLUSTER_SIMILARITY_THRESHOLD = 0.84;
+
+// How many not-yet-notified clusters to send to Telegram per run, highest
+// score first. Kept small so the builder isn't flooded on their phone.
+export const CLUSTERS_TO_NOTIFY_PER_RUN = 5;

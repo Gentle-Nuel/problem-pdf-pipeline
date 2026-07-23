@@ -11,7 +11,7 @@ Build order (see spec for detail):
 - [x] 1. Repo + Supabase schema + Voyage AI key
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
-- [ ] 4. Telegram bot: list clusters, approve action
+- [x] 4. Telegram bot: list clusters, approve action (code in — needs live test, see below)
 - [ ] 5. Research step (Claude + web search)
 - [ ] 6. PDF generation + pricing tiers + disclaimer
 - [ ] 7. Pre-publish review tap
@@ -68,3 +68,23 @@ Same caveat as step 2 — couldn't test this against live Voyage/Supabase from t
 **Confirmed working (2026-07-23):** first live run produced 49 singleton clusters from 49 raw_problems (zero merges). `api/cluster-diagnostics.ts` (manual-only, not on a cron schedule — reports the closest pairs and a similarity histogram from existing cluster embeddings, no new Voyage calls) confirmed this was correct rather than the threshold being too strict: the closest pair in the whole batch was 0.615 similarity, nowhere near 0.84, and topically-related-but-different (not real duplicates). Stack Exchange moderators already merge duplicate questions before they accumulate votes, so a clean top-voted sample being mostly distinct is expected — 0.84 hasn't caused a false negative yet, but also hasn't been tested against a real duplicate. Revisit once more scrape runs accumulate and genuine repeat problems show up.
 
 This run also surfaced a real bug, since fixed: Stack Exchange HTML-escapes question titles, not just bodies (`&quot;`, `&#39;`, etc.), and only body text was being decoded. Since the title becomes `representative_text` — which the spec has becoming the actual PDF title / Gumroad listing copy — this would have shipped literal HTML entities into paid product titles. Fixed in `lib/stackexchange.ts`; the 49 rows from this test run still have the raw entities since they predate the fix, which is fine since this is pipeline-validation data, not anything customer-facing yet.
+
+## Step 4: Telegram bot (approve action)
+
+No separate cron for this — notification is the last step of `api/cluster-problems.ts` (`lib/notifyClusters.ts`), not a third scheduled function, since Vercel's Hobby plan caps cron jobs at 2 and we're already at that limit with the scraper and clustering job. It runs regardless of whether that invocation clustered anything new, so it also catches up on any backlog of un-notified clusters.
+
+Each run sends the top `CLUSTERS_TO_NOTIFY_PER_RUN` (`lib/config.ts`, starts at 5) not-yet-notified clusters to your Telegram chat, highest score first, each with an example source link and an inline **"✅ Approve"** button. Tapping it hits `api/telegram-webhook.ts`, which sets that cluster's `status` to `approved` and edits the message to confirm. `problem_clusters.telegram_notified_at` (`supabase/migrations/0005_problem_clusters_telegram_notified.sql`, run this one too) tracks what's already been sent so nothing repeats.
+
+**To wire it up:**
+1. Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, follow the prompts. You get a bot token — that's `TELEGRAM_BOT_TOKEN`.
+2. Send your new bot any message (e.g. "hi") so Telegram has a chat to report.
+3. Visit `https://api.telegram.org/bot<TOKEN>/getUpdates` in your phone browser (replace `<TOKEN>`) — find `"chat":{"id": ...}` in the response. That number is `TELEGRAM_CHAT_ID`.
+4. Generate a random string for `TELEGRAM_WEBHOOK_SECRET` (any value works — this just has to match between Vercel and the webhook registration in step 6).
+5. Add `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `TELEGRAM_WEBHOOK_SECRET` to Vercel's environment variables, then redeploy.
+6. Register the webhook by visiting (in your phone browser, once):
+   `https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://problem-pdf-pipeline.vercel.app/api/telegram-webhook&secret_token=<TELEGRAM_WEBHOOK_SECRET>`
+   A `{"ok":true,"result":true,...}` response means it registered.
+7. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` — since all 49 existing clusters are already clustered but none have been notified yet, this should send up to 5 of them straight to your Telegram chat.
+8. Tap **Approve** on one — the message should update to show "✅ Approved", and that cluster's `status` should flip to `approved` in Supabase.
+
+Same caveat as the previous steps — couldn't test any of this against live Telegram/Supabase from this sandbox. Code typechecks clean; the real test is your run.
