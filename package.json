@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
@@ -13,7 +16,7 @@
     "puppeteer-core": "^25.3.0"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
+    "@types/node": "^22.20.1",
     "@vercel/node": "^5.8.26",
     "typescript": "^5.5.4"
   }

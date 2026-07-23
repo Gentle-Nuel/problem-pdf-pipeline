@@ -124,6 +124,14 @@ Also folded into `api/cluster-problems.ts` (`lib/generatePdfs.ts`) — same cron
 
 **This is the highest-risk step so far, genuinely untested even by proxy** — Puppeteer-on-serverless is a notoriously fragile combination (bundle size limits, cold-start behavior, memory pressure), and this sandbox has no headless Chrome environment to test against at all, unlike the API calls elsewhere in this pipeline where I could at least confirm the request shape was right before deploying. Expect this one to likely need more than one live debugging round.
 
+**Pre-deploy fixes applied after live research** (verified against `@sparticuz/chromium`'s own README in `node_modules`, plus the installed package's `package.json`):
+- `headless: "shell"` instead of `headless: true` — this package's binary is specifically `headless_shell`, which doesn't support Chrome's "new" headless mode that `true` would otherwise select. Would very likely have failed to launch at all.
+- `args` now goes through `puppeteer.defaultArgs({ args: chromium.args, headless: "shell" })` instead of passing `chromium.args` directly — matches the package's own documented usage, merges in Puppeteer's required defaults alongside the serverless-tuned flags.
+- Added `"engines": {"node": "22.x"}` to `package.json` — `@sparticuz/chromium@149` requires Node `^22.17.0 || >=24.0.0`; a plain Vercel Functions project with no `engines` field could land on an older default runtime that doesn't satisfy this.
+- Added `includeFiles` in `vercel.json` for the Chromium binary directory — defensive measure in case Vercel's automatic file tracing misses the dynamically-resolved binary path (a documented failure mode for this package: `"The input directory /var/task/bin does not exist"`).
+
+**One thing I can't fix in code, only flag honestly:** the package's own README recommends "at least 512 MB, but 1600 MB (or more)" of memory. Vercel's Hobby plan caps functions at 1024 MB total — so the `memory: 1024` already set in `vercel.json` is the ceiling on Hobby, not a safe buffer under the package's own recommendation. If PDF generation fails specifically on memory/OOM, the only real fix is upgrading to Vercel Pro (higher memory ceiling, ~3008 MB) — worth knowing before we spend a debugging round chasing something that's actually a plan limit, not a bug.
+
 **To wire it up:**
 1. No new API key needed — this step only touches Supabase (already configured) and computes everything else.
 2. Push/redeploy so Vercel picks up the new `vercel.json` memory/duration settings.

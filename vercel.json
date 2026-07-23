@@ -6,7 +6,8 @@
   "functions": {
     "api/cluster-problems.ts": {
       "memory": 1024,
-      "maxDuration": 300
+      "maxDuration": 300,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
     }
   }
 }
