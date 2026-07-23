@@ -1,14 +1,15 @@
 import { requireEnv } from "./env.js";
 
-// gemini-2.5-flash 404'd ("no longer available to new users"), and
-// gemini-flash-latest (resolves to regular Flash) hit a 429 — this
-// account's free tier caps every standard Flash model at RPM 5 / RPD 20
-// (confirmed via the rate-limit dashboard). The Flash-Lite tier gets a much
-// higher grant (RPM 15 / RPD 500 on Gemini 3.5 Flash Lite), comfortably
-// covering RESEARCH_PER_RUN. Tradeoff: Flash-Lite is lighter/faster and
-// somewhat less capable than full Flash — acceptable here since search
-// grounding is doing most of the heavy lifting on accuracy.
-const MODEL = "gemini-flash-lite-latest";
+// gemini-2.5-flash 404'd ("no longer available to new users");
+// gemini-flash-latest and gemini-flash-lite-latest both still 429'd — the
+// rate-limit dashboard shows the higher quota (RPM 15 / RPD 500) only on
+// the newer generation explicitly (Gemini 3.1/3.5 Flash Lite), while
+// Gemini 2.5 Flash Lite shares the same restrictive RPD 20 as regular
+// Flash. The "-latest" aliases apparently don't resolve to the
+// high-quota model, so pinning directly instead of aliasing — accepting
+// the staleness risk this time in exchange for a quota tier confirmed via
+// both the model list and the rate-limit table.
+const MODEL = "gemini-3.5-flash-lite";
 
 const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide. Use Google Search grounding to find accurate, current, and specific information: root causes, official documentation, and community-verified fixes.
 
