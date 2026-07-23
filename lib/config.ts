@@ -36,8 +36,3 @@ export const PDF_PER_RUN = 3;
 // How many not-yet-PAA-checked clusters to cross-validate against Google's
 // autocomplete per run — see lib/scrapeGooglePaa.ts.
 export const GOOGLE_PAA_CLUSTERS_PER_RUN = 5;
-
-// Google's autocomplete endpoint 400s on long queries — confirmed live: a
-// 112-char query failed, a 41-char query succeeded. Exact threshold is
-// undocumented, so this is a conservative cutoff, not a measured boundary.
-export const GOOGLE_PAA_MAX_QUERY_LENGTH = 100;
