@@ -6,6 +6,7 @@ import { computeScore } from "../lib/scoring.js";
 import { CLUSTER_SIMILARITY_THRESHOLD } from "../lib/config.js";
 import { isAuthorizedCronRequest } from "../lib/cronAuth.js";
 import { notifyTopClusters } from "../lib/notifyClusters.js";
+import { researchApprovedClusters } from "../lib/researchClusters.js";
 
 interface RawProblem {
   id: string;
@@ -161,11 +162,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // whether this run clustered anything new.
   const notified = await notifyTopClusters(supabase);
 
+  // 9. Research approved clusters — same reasoning as notify: runs every
+  // time, not just when this invocation clustered something new.
+  const researched = await researchApprovedClusters(supabase);
+
   return res.status(200).json({
     ok: true,
     processed: unclustered.length,
     newClusters: newClustersCount,
     touchedClusters: touchedClustersCount,
     notified,
+    researched,
   });
 }

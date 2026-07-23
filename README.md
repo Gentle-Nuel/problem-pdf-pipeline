@@ -12,7 +12,7 @@ Build order (see spec for detail):
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
-- [ ] 5. Research step (Claude + web search)
+- [x] 5. Research step (Claude + web search) (code in — needs live test, see below)
 - [ ] 6. PDF generation + pricing tiers + disclaimer
 - [ ] 7. Pre-publish review tap
 - [ ] 8a. Companion blog draft + humanize pipeline
@@ -90,3 +90,18 @@ Each run sends the top `CLUSTERS_TO_NOTIFY_PER_RUN` (`lib/config.ts`, starts at 
 Same caveat as the previous steps — couldn't test any of this against live Telegram/Supabase from this sandbox. Code typechecks clean; the real test is your run.
 
 **Confirmed working (2026-07-23):** hit a `column problem_clusters.telegram_notified_at does not exist` error on the first attempt — migration `0005` hadn't been applied yet. After running it, `/api/cluster-problems` sent 5 clusters to Telegram with correct titles/scores/source links and working Approve buttons; tapping Approve updated the message to "✅ Approved" and flipped `status` to `approved` in Supabase. Full loop confirmed end to end.
+
+## Step 5: Research (Claude + web search)
+
+Also folded into `api/cluster-problems.ts` (`lib/researchClusters.ts`) rather than a third cron, for the same Hobby-plan cron-limit reason as notifications — it runs at the end of every invocation, picks up the top `RESEARCH_PER_RUN` (`lib/config.ts`, starts at 3) clusters with `status = 'approved'`, and for each one calls Claude (`claude-opus-4-8`, adaptive thinking, `effort: high`, streamed) with the server-side `web_search` tool. No manual search loop needed — web search is server-side, so Claude searches and synthesizes in one call. The result (Markdown: Problem / Root Causes / Step-by-Step Fix / Resources) is saved to `research_docs`, and the cluster's `status` advances to `researched`.
+
+Batch size is kept small (3) because each call involves web search plus thinking and can run for a while — Vercel's function timeout on this deployment showed a 5-minute ceiling in earlier logs, so a handful of research calls per run stays comfortably inside that.
+
+**To wire it up:**
+1. Get an API key at [console.anthropic.com](https://console.anthropic.com) (or reuse one if you already have Claude API access).
+2. Set `ANTHROPIC_API_KEY` in Vercel's environment variables, then redeploy.
+3. Approve at least one cluster in Telegram if you haven't already (step 4).
+4. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` again — the JSON response now includes a `researched` count.
+5. Check `research_docs` in Supabase — should have a new row with real Markdown content for the approved cluster; that cluster's `status` in `problem_clusters` should now read `researched`.
+
+Same caveat as every step so far — couldn't test this against the live Anthropic API from this sandbox. Code typechecks clean; the real test is your run.

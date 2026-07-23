@@ -22,3 +22,8 @@ export const CLUSTER_SIMILARITY_THRESHOLD = 0.84;
 // How many not-yet-notified clusters to send to Telegram per run, highest
 // score first. Kept small so the builder isn't flooded on their phone.
 export const CLUSTERS_TO_NOTIFY_PER_RUN = 5;
+
+// How many approved-but-unresearched clusters to research per run. Each
+// call involves web search + adaptive thinking and can take a while — kept
+// small to stay comfortably inside the function's execution time limit.
+export const RESEARCH_PER_RUN = 3;
