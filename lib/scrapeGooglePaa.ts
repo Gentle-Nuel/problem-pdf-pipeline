@@ -24,7 +24,13 @@ export async function scrapeGooglePaa(supabase: SupabaseClient): Promise<{ check
   let submitted = 0;
 
   for (const cluster of candidates) {
-    const query = (cluster.representative_text as string).split(/\s+/).slice(0, 6).join(" ");
+    // representative_text is already just the source question's title (see
+    // api/cluster-problems.ts) — short and specific. An earlier version of
+    // this truncated to the first 6 words, which on titles phrased like
+    // "Is it OK to relabel a main panel breaker?" strips exactly the words
+    // that made it specific, leaving a generic stem ("Is it ok to relabel
+    // a") that Google's autocomplete fills with unrelated popular queries.
+    const query = (cluster.representative_text as string).trim();
     const suggestions = await fetchAutocompleteSuggestions(query);
 
     const rows = suggestions
