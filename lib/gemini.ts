@@ -1,12 +1,14 @@
 import { requireEnv } from "./env.js";
 
-// gemini-2.5-flash (the original guess here) 404s with "no longer
-// available to new users" — Google restricts some pinned model versions to
-// pre-existing projects even while they stay listed in the general
-// catalog. Using the rolling "-latest" alias instead of a pinned version
-// avoids hitting this same wall again as models rotate — confirmed
-// available via GET https://generativelanguage.googleapis.com/v1beta/models?key=...
-const MODEL = "gemini-flash-latest";
+// gemini-2.5-flash 404'd ("no longer available to new users"), and
+// gemini-flash-latest (resolves to regular Flash) hit a 429 — this
+// account's free tier caps every standard Flash model at RPM 5 / RPD 20
+// (confirmed via the rate-limit dashboard). The Flash-Lite tier gets a much
+// higher grant (RPM 15 / RPD 500 on Gemini 3.5 Flash Lite), comfortably
+// covering RESEARCH_PER_RUN. Tradeoff: Flash-Lite is lighter/faster and
+// somewhat less capable than full Flash — acceptable here since search
+// grounding is doing most of the heavy lifting on accuracy.
+const MODEL = "gemini-flash-lite-latest";
 
 const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide. Use Google Search grounding to find accurate, current, and specific information: root causes, official documentation, and community-verified fixes.
 
