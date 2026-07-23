@@ -10,7 +10,7 @@ Build order (see spec for detail):
 
 - [x] 1. Repo + Supabase schema + Voyage AI key
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
-- [x] 3. Clustering + ranking cron (Voyage AI embeddings) (code in — needs live test, see below)
+- [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [ ] 4. Telegram bot: list clusters, approve action
 - [ ] 5. Research step (Claude + web search)
 - [ ] 6. PDF generation + pricing tiers + disclaimer
@@ -64,3 +64,7 @@ Cluster embeddings are stored as a plain `jsonb` array on `problem_clusters` (`s
 4. Check `problem_clusters` and `cluster_members` in Supabase to see the actual groupings — this is the point where the 0.84 threshold needs a human sanity check: skim a few clusters, see if anything obviously duplicate got left separate, or anything unrelated got merged, and report back so the threshold can be tuned.
 
 Same caveat as step 2 — couldn't test this against live Voyage/Supabase from this sandbox. Code typechecks clean; the real test is your run.
+
+**Confirmed working (2026-07-23):** first live run produced 49 singleton clusters from 49 raw_problems (zero merges). `api/cluster-diagnostics.ts` (manual-only, not on a cron schedule — reports the closest pairs and a similarity histogram from existing cluster embeddings, no new Voyage calls) confirmed this was correct rather than the threshold being too strict: the closest pair in the whole batch was 0.615 similarity, nowhere near 0.84, and topically-related-but-different (not real duplicates). Stack Exchange moderators already merge duplicate questions before they accumulate votes, so a clean top-voted sample being mostly distinct is expected — 0.84 hasn't caused a false negative yet, but also hasn't been tested against a real duplicate. Revisit once more scrape runs accumulate and genuine repeat problems show up.
+
+This run also surfaced a real bug, since fixed: Stack Exchange HTML-escapes question titles, not just bodies (`&quot;`, `&#39;`, etc.), and only body text was being decoded. Since the title becomes `representative_text` — which the spec has becoming the actual PDF title / Gumroad listing copy — this would have shipped literal HTML entities into paid product titles. Fixed in `lib/stackexchange.ts`; the 49 rows from this test run still have the raw entities since they predate the fix, which is fine since this is pipeline-validation data, not anything customer-facing yet.
