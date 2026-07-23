@@ -13,7 +13,7 @@ Build order (see spec for detail):
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
 - [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
-- [x] 6. PDF generation + pricing tiers + disclaimer (code in — needs live test, see below)
+- [x] 6. PDF generation + pricing tiers + disclaimer (confirmed working live, first try)
 - [ ] 7. Pre-publish review tap
 - [ ] 8a. Companion blog draft + humanize pipeline
 - [ ] 8b. Static site deploy
@@ -139,3 +139,5 @@ Also folded into `api/cluster-problems.ts` (`lib/generatePdfs.ts`) — same cron
 4. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` — response now includes a `drafted` count.
 5. Check the `pdfs` table in Supabase for a new row, and check Storage → the `pdfs` bucket for the actual file. Open the `file_url` and confirm it's a real, readable PDF with the title, disclaimer, and formatted guide content.
 6. If it errors, send me the Vercel logs — given the caveat above, budget for this taking a few rounds.
+
+**Confirmed working (2026-07-23), first try:** drafted 3 PDFs in a single run. All four checks passed — real row in `pdfs`, real file in Storage, `file_url` opened as a genuinely readable PDF (title, disclaimer box, all four sections, working resource links), cluster `status` advanced to `drafted`. No debugging round needed — a direct result of catching the `headless: "shell"` and `defaultArgs` issues via research before deploying instead of after a crash.
