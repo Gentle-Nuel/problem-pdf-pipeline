@@ -11,3 +11,10 @@ export interface ScrapeTarget {
 export const SCRAPE_TARGETS: ScrapeTarget[] = [{ site: "diy" }, { site: "cooking" }];
 
 export const SCRAPE_LIMIT_PER_TARGET = 25;
+
+// Cosine similarity above which a new problem is merged into an existing
+// cluster rather than starting a new one. Unvalidated starting guess —
+// after the first real clustering run, spot-check a sample of clusters in
+// Supabase: merges that shouldn't have happened -> raise this; obvious
+// duplicates left unmerged -> lower it.
+export const CLUSTER_SIMILARITY_THRESHOLD = 0.84;

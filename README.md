@@ -10,7 +10,7 @@ Build order (see spec for detail):
 
 - [x] 1. Repo + Supabase schema + Voyage AI key
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
-- [ ] 3. Clustering + ranking cron (Voyage AI embeddings)
+- [x] 3. Clustering + ranking cron (Voyage AI embeddings) (code in — needs live test, see below)
 - [ ] 4. Telegram bot: list clusters, approve action
 - [ ] 5. Research step (Claude + web search)
 - [ ] 6. PDF generation + pricing tiers + disclaimer
@@ -50,3 +50,17 @@ Reddit was the original plan here but got dropped — its Responsible Builder Po
 **Confirmed working (2026-07-23):** deployed to Vercel, hit the endpoint directly — 24/25 `diy` questions and 25/25 `cooking` questions landed in `raw_problems` (1 caught by the regulated-advice blocklist). If you disabled "Automatically expose new tables" during Supabase project setup, you also need `supabase/migrations/0003_grant_service_role.sql` — that toggle skips granting table privileges to `service_role` too, not just `anon`/`authenticated`, and inserts fail with "permission denied" without it.
 
 I couldn't test this against the live Stack Exchange/Supabase APIs myself — this sandbox's network is restricted to an allowlist that doesn't include either. Code typechecks clean; the above is the real test.
+
+## Step 3: Clustering + ranking
+
+`api/cluster-problems.ts` is a Vercel Cron function (runs daily at 07:00 UTC, an hour after the scrape) that finds `raw_problems` not yet linked to a cluster, embeds them in one batch call via Voyage AI (`lib/voyage.ts`), and compares each against existing cluster embeddings using cosine similarity (`lib/similarity.ts`). A match above `CLUSTER_SIMILARITY_THRESHOLD` (`lib/config.ts`, starts at 0.84 — unvalidated, see the comment there) joins that cluster; otherwise it starts a new one, using the problem's title as `representative_text`. Every touched cluster gets `source_count`/`total_engagement`/`score` recomputed from its full membership (`lib/scoring.ts`) so aggregates can't drift.
+
+Cluster embeddings are stored as a plain `jsonb` array on `problem_clusters` (`supabase/migrations/0004_problem_clusters_embedding.sql`, run this one too) — comparisons happen in JS, no `pgvector` extension needed at this scale.
+
+**To wire it up:**
+1. Get a Voyage AI API key at [voyageai.com](https://voyageai.com) (dashboard → API keys).
+2. Set `VOYAGE_API_KEY` in `.env` and in Vercel's environment variables, then redeploy.
+3. Hit `/api/cluster-problems` (same `CRON_SECRET` header rule as the scraper). It returns counts of problems processed, new clusters created, and clusters touched.
+4. Check `problem_clusters` and `cluster_members` in Supabase to see the actual groupings — this is the point where the 0.84 threshold needs a human sanity check: skim a few clusters, see if anything obviously duplicate got left separate, or anything unrelated got merged, and report back so the threshold can be tuned.
+
+Same caveat as step 2 — couldn't test this against live Voyage/Supabase from this sandbox. Code typechecks clean; the real test is your run.

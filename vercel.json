@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/scrape-stackexchange", "schedule": "0 6 * * *" }
+    { "path": "/api/scrape-stackexchange", "schedule": "0 6 * * *" },
+    { "path": "/api/cluster-problems", "schedule": "0 7 * * *" }
   ]
 }
