@@ -9,7 +9,9 @@ export async function fetchAutocompleteSuggestions(query: string): Promise<strin
   const res = await fetch(url);
 
   if (!res.ok) {
-    throw new Error(`Google autocomplete request failed: ${res.status} ${await res.text()}`);
+    throw new Error(
+      `Google autocomplete request failed for query "${query}": ${res.status} ${await res.text()}`,
+    );
   }
 
   const data = (await res.json()) as [string, string[], ...unknown[]];

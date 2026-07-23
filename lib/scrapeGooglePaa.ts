@@ -10,7 +10,9 @@ import { GOOGLE_PAA_CLUSTERS_PER_RUN } from "./config.js";
 // new rows land with source='google_paa' and flow into the existing
 // clustering cron unmodified — this file never touches clustering,
 // scoring, or similarity logic.
-export async function scrapeGooglePaa(supabase: SupabaseClient): Promise<{ checked: number; submitted: number }> {
+export async function scrapeGooglePaa(
+  supabase: SupabaseClient,
+): Promise<{ checked: number; submitted: number; failed: { clusterId: string; error: string }[] }> {
   const { data: candidates, error } = await supabase
     .from("problem_clusters")
     .select("id, representative_text")
@@ -19,9 +21,10 @@ export async function scrapeGooglePaa(supabase: SupabaseClient): Promise<{ check
     .limit(GOOGLE_PAA_CLUSTERS_PER_RUN);
 
   if (error) throw new Error(`Failed to load clusters for PAA check: ${error.message}`);
-  if (!candidates || candidates.length === 0) return { checked: 0, submitted: 0 };
+  if (!candidates || candidates.length === 0) return { checked: 0, submitted: 0, failed: [] };
 
   let submitted = 0;
+  const failed: { clusterId: string; error: string }[] = [];
 
   for (const cluster of candidates) {
     // representative_text is already just the source question's title (see
@@ -31,23 +34,37 @@ export async function scrapeGooglePaa(supabase: SupabaseClient): Promise<{ check
     // that made it specific, leaving a generic stem ("Is it ok to relabel
     // a") that Google's autocomplete fills with unrelated popular queries.
     const query = (cluster.representative_text as string).trim();
-    const suggestions = await fetchAutocompleteSuggestions(query);
 
-    const rows = suggestions
-      .filter((s) => !isRegulatedAdvice(s))
-      .map((s) => ({
-        source: "google_paa",
-        source_url: null,
-        raw_text: s,
-        engagement_score: 0,
-      }));
+    // A single bad query (Google 400s, transient network issue, etc.) must
+    // not: (a) crash the whole run and lose progress on the candidates
+    // already processed before it, or (b) leave this cluster's
+    // paa_checked_at unset — since candidates are pulled highest-score-
+    // first, an unset checked_at means the same failing cluster would be
+    // first in line again on every future run, permanently jamming this
+    // endpoint on one bad query.
+    try {
+      const suggestions = await fetchAutocompleteSuggestions(query);
 
-    if (rows.length > 0) {
-      const { error: insertErr } = await supabase.from("raw_problems").insert(rows);
-      if (insertErr) {
-        throw new Error(`Failed to insert PAA suggestions for cluster ${cluster.id}: ${insertErr.message}`);
+      const rows = suggestions
+        .filter((s) => !isRegulatedAdvice(s))
+        .map((s) => ({
+          source: "google_paa",
+          source_url: null,
+          raw_text: s,
+          engagement_score: 0,
+        }));
+
+      if (rows.length > 0) {
+        const { error: insertErr } = await supabase.from("raw_problems").insert(rows);
+        if (insertErr) {
+          throw new Error(`Failed to insert PAA suggestions for cluster ${cluster.id}: ${insertErr.message}`);
+        }
+        submitted += rows.length;
       }
-      submitted += rows.length;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`PAA check failed for cluster ${cluster.id} (query "${query}"): ${message}`);
+      failed.push({ clusterId: cluster.id as string, error: message });
     }
 
     const { error: updateErr } = await supabase
@@ -57,5 +74,5 @@ export async function scrapeGooglePaa(supabase: SupabaseClient): Promise<{ check
     if (updateErr) throw new Error(`Failed to mark cluster ${cluster.id} PAA-checked: ${updateErr.message}`);
   }
 
-  return { checked: candidates.length, submitted };
+  return { checked: candidates.length, submitted, failed };
 }
