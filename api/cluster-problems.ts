@@ -7,6 +7,7 @@ import { CLUSTER_SIMILARITY_THRESHOLD } from "../lib/config.js";
 import { isAuthorizedCronRequest } from "../lib/cronAuth.js";
 import { notifyTopClusters } from "../lib/notifyClusters.js";
 import { researchApprovedClusters } from "../lib/researchClusters.js";
+import { generatePdfsForResearchedClusters } from "../lib/generatePdfs.js";
 
 interface RawProblem {
   id: string;
@@ -166,6 +167,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // time, not just when this invocation clustered something new.
   const researched = await researchApprovedClusters(supabase);
 
+  // 10. Render PDFs for researched clusters.
+  const drafted = await generatePdfsForResearchedClusters(supabase);
+
   return res.status(200).json({
     ok: true,
     processed: unclustered.length,
@@ -173,5 +177,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     touchedClusters: touchedClustersCount,
     notified,
     researched,
+    drafted,
   });
 }

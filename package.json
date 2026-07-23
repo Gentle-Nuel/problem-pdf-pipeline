@@ -7,7 +7,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4"
+    "@sparticuz/chromium": "^149.0.0",
+    "@supabase/supabase-js": "^2.45.4",
+    "marked": "^18.0.7",
+    "puppeteer-core": "^25.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

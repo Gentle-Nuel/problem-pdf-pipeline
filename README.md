@@ -13,7 +13,7 @@ Build order (see spec for detail):
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
 - [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
-- [ ] 6. PDF generation + pricing tiers + disclaimer
+- [x] 6. PDF generation + pricing tiers + disclaimer (code in — needs live test, see below)
 - [ ] 7. Pre-publish review tap
 - [ ] 8a. Companion blog draft + humanize pipeline
 - [ ] 8b. Static site deploy
@@ -109,3 +109,25 @@ Folded into `api/cluster-problems.ts` (`lib/researchClusters.ts`) rather than a 
 5. Check the new `research_docs` row — the `Resources` section should now cite the actual URLs Tavily returned, not just plausible-sounding ones from training knowledge.
 
 **Confirmed working (2026-07-23):** first run (before the Tavily upgrade) produced a genuinely good guide from training knowledge alone. Second run with Tavily wired in confirmed real grounding is working — the `Resources` section cited actual, verifiable URLs (Serious Eats, The Kitchn, a real Emmymade review, a real Stack Exchange thread), not just plausible-sounding ones. Content itself stayed well-structured and specific. Step 5 is genuinely done — real search-grounded research, not a compromise.
+
+## Step 6: PDF generation
+
+Also folded into `api/cluster-problems.ts` (`lib/generatePdfs.ts`) — same cron-limit reasoning as steps 4/5. Runs at the end of every invocation, picks up the top `PDF_PER_RUN` (`lib/config.ts`, starts at 3) clusters with `status = 'researched'`, and for each one:
+
+1. Converts the `research_docs` Markdown to styled HTML (`lib/pdfTemplate.ts`, via the `marked` library) — title from `representative_text`, and the guardrails disclaimer boilerplate injected right under the title on every single PDF regardless of topic.
+2. Renders it to an actual PDF using headless Chromium (`lib/pdf.ts`, `puppeteer-core` + `@sparticuz/chromium` — full `puppeteer` bundles an incompatible Chromium build for serverless, hence the split package).
+3. Uploads the PDF to Supabase Storage (`lib/storage.ts`, bucket `pdfs`, created automatically on first use — no manual dashboard step) and gets a public URL.
+4. Computes a price tier from the research content's word count and resource-link count (`lib/pricing.ts` — $5/$9/$14, an unvalidated starting guess per the spec's pricing strategy, easy to retune once there's real sales data).
+5. Saves the row to `pdfs` (`file_url`, `title`, `price`) and advances the cluster's `status` to `drafted`.
+
+`vercel.json` bumps this function to 1024 MB memory and a 300s max duration — headless Chromium needs real memory headroom, and this is now the heaviest single step in the pipeline.
+
+**This is the highest-risk step so far, genuinely untested even by proxy** — Puppeteer-on-serverless is a notoriously fragile combination (bundle size limits, cold-start behavior, memory pressure), and this sandbox has no headless Chrome environment to test against at all, unlike the API calls elsewhere in this pipeline where I could at least confirm the request shape was right before deploying. Expect this one to likely need more than one live debugging round.
+
+**To wire it up:**
+1. No new API key needed — this step only touches Supabase (already configured) and computes everything else.
+2. Push/redeploy so Vercel picks up the new `vercel.json` memory/duration settings.
+3. Make sure at least one cluster has `status = 'researched'` (should already be true from step 5's testing).
+4. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` — response now includes a `drafted` count.
+5. Check the `pdfs` table in Supabase for a new row, and check Storage → the `pdfs` bucket for the actual file. Open the `file_url` and confirm it's a real, readable PDF with the title, disclaimer, and formatted guide content.
+6. If it errors, send me the Vercel logs — given the caveat above, budget for this taking a few rounds.

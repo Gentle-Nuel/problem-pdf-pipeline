@@ -27,3 +27,8 @@ export const CLUSTERS_TO_NOTIFY_PER_RUN = 5;
 // call involves web search + adaptive thinking and can take a while — kept
 // small to stay comfortably inside the function's execution time limit.
 export const RESEARCH_PER_RUN = 3;
+
+// How many researched-but-undrafted clusters to render to PDF per run.
+// Launching headless Chromium per PDF is the heaviest single step in this
+// pipeline — kept small for the same execution-time-budget reason.
+export const PDF_PER_RUN = 3;
