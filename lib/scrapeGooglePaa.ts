@@ -1,7 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAutocompleteSuggestions } from "./googlePaa.js";
 import { isRegulatedAdvice } from "./blocklist.js";
-import { GOOGLE_PAA_CLUSTERS_PER_RUN } from "./config.js";
+import { GOOGLE_PAA_CLUSTERS_PER_RUN, GOOGLE_PAA_MAX_QUERY_LENGTH } from "./config.js";
+
+// Google's autocomplete endpoint 400s past some undocumented length limit
+// (confirmed live — see GOOGLE_PAA_MAX_QUERY_LENGTH). Cuts at the last word
+// boundary within the limit rather than mid-word.
+function truncateForAutocomplete(text: string): string {
+  if (text.length <= GOOGLE_PAA_MAX_QUERY_LENGTH) return text;
+  const cut = text.slice(0, GOOGLE_PAA_MAX_QUERY_LENGTH);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trim();
+}
 
 // Cross-validates existing clusters against Google's autocomplete
 // suggestions — closes the gap flagged in docs/spec.md's Data sources
@@ -33,7 +43,7 @@ export async function scrapeGooglePaa(
     // "Is it OK to relabel a main panel breaker?" strips exactly the words
     // that made it specific, leaving a generic stem ("Is it ok to relabel
     // a") that Google's autocomplete fills with unrelated popular queries.
-    const query = (cluster.representative_text as string).trim();
+    const query = truncateForAutocomplete((cluster.representative_text as string).trim());
 
     // A single bad query (Google 400s, transient network issue, etc.) must
     // not: (a) crash the whole run and lose progress on the candidates
