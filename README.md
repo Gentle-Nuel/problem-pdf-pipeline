@@ -12,7 +12,7 @@ Build order (see spec for detail):
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
-- [x] 5. Research step (Gemini, no live search grounding yet — see caveat below) (confirmed working live)
+- [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
 - [ ] 6. PDF generation + pricing tiers + disclaimer
 - [ ] 7. Pre-publish review tap
 - [ ] 8a. Companion blog draft + humanize pipeline
@@ -108,4 +108,4 @@ Folded into `api/cluster-problems.ts` (`lib/researchClusters.ts`) rather than a 
 4. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` again (needs another approved-but-unresearched cluster — the one from the first test is already `researched`; approve a new one in Telegram first if needed).
 5. Check the new `research_docs` row — the `Resources` section should now cite the actual URLs Tavily returned, not just plausible-sounding ones from training knowledge.
 
-**Confirmed working (2026-07-23):** first successful run (before the Tavily upgrade) produced a genuinely good guide (breaker panel relabeling — correctly cited NEC 408.4, concrete step-by-step instructions) saved to `research_docs`, cluster status advanced to `researched`. Tavily integration itself not yet live-tested — same caveat as usual, this could need a fix-up round.
+**Confirmed working (2026-07-23):** first run (before the Tavily upgrade) produced a genuinely good guide from training knowledge alone. Second run with Tavily wired in confirmed real grounding is working — the `Resources` section cited actual, verifiable URLs (Serious Eats, The Kitchn, a real Emmymade review, a real Stack Exchange thread), not just plausible-sounding ones. Content itself stayed well-structured and specific. Step 5 is genuinely done — real search-grounded research, not a compromise.
