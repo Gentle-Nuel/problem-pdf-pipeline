@@ -11,16 +11,14 @@ import { requireEnv } from "./env.js";
 // both the model list and the rate-limit table.
 const MODEL = "gemini-3.5-flash-lite";
 
-const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide. Use Google Search grounding to find accurate, current, and specific information: root causes, official documentation, and community-verified fixes.
-
-Write your findings as clean Markdown with exactly these sections, in this order:
+const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide, drawing on your training knowledge — live web search is not available in this pipeline right now. Write your findings as clean Markdown with exactly these sections, in this order:
 
 ## Problem
 ## Root Causes
 ## Step-by-Step Fix
 ## Resources
 
-Be concrete and specific rather than generic — this content becomes a guide someone is paying for. List the sources you actually used under Resources as a Markdown link list. If you're not confident about something, say so rather than guessing.`;
+Be concrete and specific rather than generic — this content becomes a guide someone is paying for. Under Resources, only list sources you're genuinely confident actually exist — well-known official documentation, standards bodies, major publications. Do not invent plausible-sounding URLs or article titles. If you're not confident about something, say so rather than guessing.`;
 
 export async function researchProblem(problemStatement: string, examples: string[]): Promise<string> {
   const apiKey = requireEnv("GEMINI_API_KEY");
@@ -46,11 +44,17 @@ export async function researchProblem(problemStatement: string, examples: string
             ],
           },
         ],
-        // TEMPORARILY DISABLED — diagnosing repeated 429s across four
-        // different models. Search grounding may specifically require
-        // billing enabled even on an otherwise-free-tier account (separate
-        // gate from base text generation) — testing plain generation
-        // without it to isolate whether that's the actual blocker.
+        // Search grounding disabled: confirmed by testing that it's
+        // specifically gated (likely requires billing) even though base
+        // generation works fine on the free tier — four different models
+        // all 429'd with grounding on, then succeeded immediately with it
+        // off. Content is generated from training knowledge, not live
+        // search; the system prompt above is written to reduce (not
+        // eliminate) the resulting risk of fabricated citations under
+        // "Resources" — spot-check links before publishing anything built
+        // on this. Revisit once billing is available on either provider,
+        // or bolt on a separate free search API and inject results into
+        // the prompt manually.
         // tools: [{ google_search: {} }],
       }),
     },

@@ -12,7 +12,7 @@ Build order (see spec for detail):
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
-- [x] 5. Research step (Claude + web search) (code in — needs live test, see below)
+- [x] 5. Research step (Gemini, no live search grounding yet — see caveat below) (confirmed working live)
 - [ ] 6. PDF generation + pricing tiers + disclaimer
 - [ ] 7. Pre-publish review tap
 - [ ] 8a. Companion blog draft + humanize pipeline
@@ -91,20 +91,14 @@ Same caveat as the previous steps — couldn't test any of this against live Tel
 
 **Confirmed working (2026-07-23):** hit a `column problem_clusters.telegram_notified_at does not exist` error on the first attempt — migration `0005` hadn't been applied yet. After running it, `/api/cluster-problems` sent 5 clusters to Telegram with correct titles/scores/source links and working Approve buttons; tapping Approve updated the message to "✅ Approved" and flipped `status` to `approved` in Supabase. Full loop confirmed end to end.
 
-## Step 5: Research (Gemini + Google Search grounding)
+## Step 5: Research (Gemini, no live search grounding for now)
 
-Also folded into `api/cluster-problems.ts` (`lib/researchClusters.ts`) rather than a third cron, for the same Hobby-plan cron-limit reason as notifications — it runs at the end of every invocation, picks up the top `RESEARCH_PER_RUN` (`lib/config.ts`, starts at 3) clusters with `status = 'approved'`, and for each one calls Gemini (`gemini-2.5-flash`, `lib/gemini.ts`) with Google Search grounding enabled. The result (Markdown: Problem / Root Causes / Step-by-Step Fix / Resources) is saved to `research_docs`, and the cluster's `status` advances to `researched`.
+Folded into `api/cluster-problems.ts` (`lib/researchClusters.ts`) rather than a third cron, same Hobby-plan reasoning as notifications — runs at the end of every invocation, picks up the top `RESEARCH_PER_RUN` (`lib/config.ts`, starts at 3) clusters with `status = 'approved'`, and for each one calls Gemini (`lib/gemini.ts`). The result (Markdown: Problem / Root Causes / Step-by-Step Fix / Resources) is saved to `research_docs`, and the cluster's `status` advances to `researched`.
 
-**Provider note:** the original plan was Claude with its server-side web search tool. Anthropic's console requires a paid credit purchase before a key works at all; Gemini's free tier via Google AI Studio doesn't need a payment method, so this step runs on Gemini instead. The original Claude implementation is recoverable from git history (`lib/claude.ts` in the commit that added step 5) if you fund the Anthropic key later and want to switch back — `lib/researchClusters.ts` would just need its import changed back.
+**Provider note:** the original plan was Claude with its server-side web search tool. Anthropic's console requires a paid credit purchase before a key works at all; Gemini's free tier via Google AI Studio doesn't. The original Claude implementation is recoverable from git history (`lib/claude.ts`, in the commit that added step 5) if the Anthropic key gets funded later.
 
-**Bigger caveat than usual on this one:** I couldn't verify Google's current Gemini API shape live either (same network restriction hit `ai.google.dev` directly) — model name, request/response shape, and the Google Search grounding tool's exact syntax are all from training data, not confirmed against current docs. This is more likely than most of what we've built so far to need a live fix-up round together.
+**Model name and quota, the hard way:** `gemini-2.5-flash` 404'd ("no longer available to new users"). Both `-latest` aliases tried (`gemini-flash-latest`, `gemini-flash-lite-latest`) resolved to models with a restrictive free-tier quota (RPM 5 / RPD 20) and 429'd. Settled on pinning directly to `gemini-3.5-flash-lite`, confirmed via the account's live rate-limit dashboard to have a much higher grant (RPM 15 / RPD 500) — the newer-generation Flash-Lite models get that higher quota, older ones and regular Flash don't.
 
-Batch size is kept small (3) because each call can take a while — Vercel's function timeout on this deployment showed a 5-minute ceiling in earlier logs, so a handful of research calls per run stays comfortably inside that.
+**Search grounding is disabled**, and it's a real tradeoff, not just a bug: even `gemini-3.5-flash-lite` with grounding enabled kept 429'ing, while the exact same request with grounding stripped out succeeded immediately — grounding is specifically gated (almost certainly requires billing) separately from base text generation's free tier. So research content is currently generated from Gemini's training knowledge, not live search. First real test output was well-structured and substantively accurate (cited real code sections correctly), but the `Resources` links/citations can't be trusted the way grounded search results could be — the system prompt instructs the model not to invent plausible-sounding sources, which reduces but doesn't eliminate the risk. **Spot-check resource links before publishing anything built on this content.** Revisit real grounding once billing is available on either provider, or by bolting on a separate free search API later.
 
-**To wire it up:**
-1. Get a free API key at [aistudio.google.com](https://aistudio.google.com) (sign in with a Google account, no payment method needed) — look for "Get API key."
-2. Set `GEMINI_API_KEY` in Vercel's environment variables, then redeploy.
-3. Approve at least one cluster in Telegram if you haven't already (step 4).
-4. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` again — the JSON response now includes a `researched` count.
-5. Check `research_docs` in Supabase — should have a new row with real Markdown content for the approved cluster; that cluster's `status` in `problem_clusters` should now read `researched`.
-6. If it errors, send me the Vercel logs the same way as before — given the caveat above, this one's genuinely likely to need a round of fixing based on the actual API response.
+**Confirmed working (2026-07-23):** first successful run produced a genuinely good guide (breaker panel relabeling — correctly cited NEC 408.4, concrete step-by-step instructions) saved to `research_docs`, cluster status advanced to `researched`.
