@@ -17,7 +17,7 @@ Build order (see spec for detail):
 - [x] 6. PDF generation + pricing tiers + disclaimer (confirmed working live, first try)
 - [x] 7. Pre-publish review tap (confirmed working live)
 - [x] 8a. Companion blog draft + humanize pipeline (confirmed working live, first try)
-- [ ] 8b. Static site deploy
+- [x] 8b. Static site deploy (code in — needs your manual Vercel project setup + live test, see below)
 - [ ] 9. Gumroad publish
 
 ## Setup
@@ -211,3 +211,39 @@ Tapping approve hits `api/telegram-webhook.ts`'s new `approve_blog:` handler, wh
 7. Read through `final_content` for a cluster and sanity-check the humanize pass actually did something — no em dashes, some sentence-length variation, a concrete detail, and critically: no fabricated personal claims ("I've fixed dozens of these...", etc.) — that would be a guardrail violation, not just a style miss, and should be reported back immediately if seen.
 
 **Confirmed working live, first try:** `blogDrafted: 2, blogReviewSent: 2` on the first run. Both `blog_posts` rows landed with `draft_content` and `final_content` populated and a real `pdf_id` link. Telegram previews read genuinely well — real structure, a specific concrete citation (e.g. "NEC 408.4"), varied sentence rhythm, and correctly linked to the actual PDF file rather than a placeholder. No sign of fabricated personal experience or credentials — the humanize pass's guardrail boundary held. Tapped "✅ Approve" on one; `blog_posts.status` correctly flipped to `approved`.
+
+## Step 8b: Static site deploy
+
+A new `site/` subdirectory — a separate Astro static site with its own `package.json`/build, deployed as a **second Vercel project** pointed at that subfolder. Same GitHub repo, no need to create a new one — Vercel supports importing the same repo twice with a different "Root Directory" per project.
+
+**Why Astro, why a subfolder, why this deploy mechanism** (the three decisions from scoping this step):
+- **Astro** over Next.js — this is Markdown content with no interactivity, exactly what Astro is built for, and it's lighter.
+- **Subfolder of the existing repo** over a brand-new repo — avoids you having to create and manage a second GitHub repo; one `git push` updates both projects' source, even though only one of them actually needs to rebuild on any given change.
+- **Supabase fetch at build time, triggered by a Vercel Deploy Hook** over committing Markdown files via GitHub API — this pipeline already talks to Supabase directly everywhere; a Deploy Hook is a single POST URL with no new auth/integration surface, versus adding GitHub API commit logic as a new capability.
+
+**What the site does:**
+- `site/src/lib/posts.ts` fetches every `blog_posts` row where `status` is `approved` or `published` at build time (server-side only — this is a fully static site, the Supabase service role key never reaches the browser).
+- `site/src/pages/[slug].astro` renders one page per post — title, the shared disclaimer (`site/src/lib/disclaimer.ts`, kept in sync with `lib/disclaimer.ts` in the main repo — duplicated, not imported, since these are two separate deployable projects without shared package tooling), then the post body converted from Markdown via `marked`.
+- `site/src/pages/index.astro` is a plain listing page linking to every post — real on-site navigation, not just a sitemap entry.
+- **SEO mechanics, built in from the start rather than deferred:**
+  - `@astrojs/sitemap` generates `sitemap-index.xml` automatically from the site's routes.
+  - Each post gets its own `<title>`, `<meta name="description">`, and canonical URL — derived from that post's own content (`site/src/lib/postMeta.ts`), not one generic site-wide tag.
+  - `site/src/pages/robots.txt.ts` generates `robots.txt` at build time from the real `PUBLIC_SITE_URL` (explicit `Allow: /` plus a `Sitemap:` line) rather than a static file that could silently ship a stale or accidentally indexing-blocked default — this is the failure mode that wouldn't show up as an error, just as zero organic traffic weeks later.
+
+**On the pipeline side:** `lib/publishBlogPosts.ts` (wired into `api/cluster-problems.ts` as the last step) checks for any `blog_posts` still at `status = 'approved'`; if there's at least one, it fires the site's Deploy Hook once (covers everything pending in a single rebuild, since the site re-fetches all approved posts every time) and marks them `published` with a real `published_url`. It no-ops quietly — doesn't error, just returns 0 — until `VERCEL_DEPLOY_HOOK_URL` and `PUBLIC_SITE_URL` are actually set, so none of this can break the rest of the pipeline before the site exists.
+
+**Verified before pushing:** `npm install` in `site/` completed clean, `npx astro check` returned 0 errors/warnings, and a build with dummy env vars got all the way through routing/config/sitemap/robots.txt generation and failed exactly where expected — the real Supabase network call, which this sandbox can't reach and a dummy URL doesn't resolve to anything. That's a strong signal the code itself is sound; the actual data-fetching and deploy behavior still needs a real test with your credentials.
+
+**To wire it up (this one has real manual setup — no way around it, a second Vercel project is a real second thing to create):**
+1. Run `supabase/migrations/0009_blog_posts_slug.sql` in the Supabase SQL editor.
+2. In Vercel: **Add New Project** → import the same `problem-pdf-pipeline` GitHub repo again → before deploying, set **Root Directory** to `site`. Vercel should auto-detect the Astro framework preset.
+3. On this **new** site project (not the main one), add environment variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (same values as the main project). Deploy.
+4. Once deployed, copy the project's `*.vercel.app` URL. Go back into the site project's settings and add `PUBLIC_SITE_URL` set to that exact URL, then redeploy once so the sitemap/canonical/robots.txt actually use the real URL instead of the placeholder.
+5. In the site project's settings → Git → **Deploy Hooks**, create one (any name, main branch) and copy the generated URL.
+6. Back on the **main pipeline project's** Vercel env vars, add `VERCEL_DEPLOY_HOOK_URL` (the URL from step 5) and `PUBLIC_SITE_URL` (same value as step 4). Redeploy the main project.
+7. Trigger `/api/cluster-problems?secret=<CRON_SECRET>` — response should include `blogPublished` > 0 if there's at least one cluster's blog post still sitting at `status = 'approved'` from step 8a testing (if there isn't one right now, approve a blog post in Telegram first, then re-trigger).
+8. Check `blog_posts` in Supabase — the approved row(s) should now read `status = 'published'` with a real `published_url`.
+9. Wait a minute or two for the site's rebuild to finish (check the Deployments tab on the site's Vercel project), then open `published_url` directly and confirm the post actually renders — title, disclaimer, body, working link back to the PDF.
+10. Check `<published_url>/sitemap-index.xml` and `<published_url>/robots.txt` both load and reference real content, not the placeholder domain.
+
+Not yet live-tested — this is the step most dependent on you actually doing the Vercel project setup above before there's anything to test.
