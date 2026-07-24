@@ -1,6 +1,6 @@
 import { requireEnv } from "./env.js";
 
-// Same pinned model as lib/gemini.ts, lib/paaJudge.ts, lib/blogDraft.ts.
+// Same pinned model as lib/gemini.ts, lib/paaJudge.ts.
 const MODEL = "gemini-3.5-flash-lite";
 
 // Stylistic pass only — see docs/spec.md "Guardrails" on the boundary
@@ -8,11 +8,14 @@ const MODEL = "gemini-3.5-flash-lite";
 // is deliberately paired with an explicit ban on inventing a backstory, so
 // the model can't satisfy it by making something up.
 //
-// Shared by both the PDF (lib/generatePdfs.ts) and the companion blog post
-// (lib/generateBlogPosts.ts) — originally blog-only, extended to PDFs once
-// a real PDF sample showed it reading noticeably more AI-generated than
-// the blog post drawn from the same research. Generic on purpose (no
-// "blog post" framing in the prompt) so it works on either draft shape.
+// Called once per cluster, from lib/generatePdfs.ts only — the companion
+// blog post no longer gets its own independent humanize pass (or its own
+// draft at all). It's derived from this same humanized output
+// (lib/excerpt.ts) instead, so "humanized once" covers both surfaces.
+// Originally blog-only, then extended to also cover PDFs once a real PDF
+// sample read noticeably more AI-generated than the blog post drawn from
+// the same research; later unified into this single call site once the
+// blog stopped being independently generated at all.
 const SYSTEM_PROMPT = `Rewrite the given draft to remove signs of AI-generated writing, without changing its meaning or adding anything false. Specifically:
 - No em dashes
 - No "it's not just X, it's Y" or similar inflated-parallelism constructions

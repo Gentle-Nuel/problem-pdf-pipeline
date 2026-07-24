@@ -1,4 +1,4 @@
-function wordCount(content: string): number {
+export function wordCount(content: string): number {
   return content.trim().split(/\s+/).filter(Boolean).length;
 }
 

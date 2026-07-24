@@ -1,5 +1,5 @@
-// final_content always starts with a single "# Title" line — enforced by
-// the drafting prompt in the main pipeline's lib/blogDraft.ts.
+// final_content always starts with a single "# Title" line — constructed
+// directly by the main pipeline's lib/generateBlogPosts.ts.
 export function extractTitle(markdown: string): string {
   const match = markdown.match(/^#\s+(.+)$/m);
   return match?.[1]?.trim() ?? "Untitled";

@@ -74,9 +74,10 @@ export const GOOGLE_PAA_CLUSTERS_PER_RUN = 5;
 // pre-publish review per run — see lib/reviewPdfs.ts.
 export const PDF_REVIEW_PER_RUN = 5;
 
-// How many PDF'd-but-not-yet-blogged clusters to draft a companion blog
-// post for per run. Two Gemini calls each (draft + humanize) — kept small
-// for the same execution-time-budget reason as RESEARCH_PER_RUN.
+// How many researched-but-not-yet-blogged clusters to generate a companion
+// blog post for per run. No Gemini calls here (lib/generateBlogPosts.ts —
+// derived deterministically from already-humanized content), so this cap
+// is now just about Telegram message volume, not execution time.
 export const BLOG_PER_RUN = 3;
 
 // How many humanized-but-not-yet-sent blog posts to send to Telegram for
