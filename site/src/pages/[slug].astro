@@ -1,0 +1,37 @@
+---
+import { marked } from "marked";
+import Layout from "../layouts/Layout.astro";
+import { getApprovedPosts, type BlogPost } from "../lib/posts";
+import { extractTitle, extractDescription } from "../lib/postMeta";
+import { DISCLAIMER } from "../lib/disclaimer";
+
+export async function getStaticPaths() {
+  const posts = await getApprovedPosts();
+  return posts.map((post) => ({
+    params: { slug: post.slug },
+    props: { post },
+  }));
+}
+
+interface Props {
+  post: BlogPost;
+}
+
+const { post } = Astro.props;
+const title = extractTitle(post.final_content);
+const description = extractDescription(post.final_content);
+const canonicalUrl = new URL(`/${post.slug}`, Astro.site).toString();
+
+// The title's already rendered as its own <h1> below, right before the
+// disclaimer — matches the main pipeline's lib/pdfTemplate.ts structure
+// (title, then disclaimer, then body) — so strip the leading "# Title"
+// line from the markdown before rendering the rest.
+const bodyMarkdown = post.final_content.replace(/^#\s+.+$/m, "").trim();
+const bodyHtml = marked.parse(bodyMarkdown, { async: false }) as string;
+---
+
+<Layout title={title} description={description} canonicalUrl={canonicalUrl}>
+  <h1>{title}</h1>
+  <div class="disclaimer">{DISCLAIMER}</div>
+  <Fragment set:html={bodyHtml} />
+</Layout>

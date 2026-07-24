@@ -11,6 +11,7 @@ import { generatePdfsForResearchedClusters } from "../lib/generatePdfs.js";
 import { sendPdfsForReview } from "../lib/reviewPdfs.js";
 import { generateBlogPosts } from "../lib/generateBlogPosts.js";
 import { sendBlogPostsForReview } from "../lib/reviewBlogPosts.js";
+import { publishApprovedBlogPosts } from "../lib/publishBlogPosts.js";
 
 interface RawProblem {
   id: string;
@@ -158,6 +159,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 13. Send humanized blog posts to Telegram for review.
   const blogReviewSent = await sendBlogPostsForReview(supabase);
 
+  // 14. Trigger the site rebuild for any approved-but-unpublished blog
+  // posts (spec step 8b). No-ops quietly until VERCEL_DEPLOY_HOOK_URL and
+  // PUBLIC_SITE_URL are set — see lib/publishBlogPosts.ts.
+  const blogPublished = await publishApprovedBlogPosts(supabase);
+
   return res.status(200).json({
     ok: true,
     processed: unclustered.length,
@@ -169,5 +175,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     reviewSent,
     blogDrafted,
     blogReviewSent,
+    blogPublished,
   });
 }

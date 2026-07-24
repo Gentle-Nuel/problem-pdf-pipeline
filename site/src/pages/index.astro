@@ -1,0 +1,15 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { getApprovedPosts } from "../lib/posts";
+import { extractTitle } from "../lib/postMeta";
+
+const posts = await getApprovedPosts();
+const canonicalUrl = new URL("/", Astro.site).toString();
+---
+
+<Layout title="Guides" description="Practical, specific guides for real problems." canonicalUrl={canonicalUrl}>
+  <h1>Guides</h1>
+  <ul>
+    {posts.map((post) => <li><a href={`/${post.slug}`}>{extractTitle(post.final_content)}</a></li>)}
+  </ul>
+</Layout>
