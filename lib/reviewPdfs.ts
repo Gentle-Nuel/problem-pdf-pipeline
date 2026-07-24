@@ -16,15 +16,33 @@ export async function sendPdfsForReview(supabase: SupabaseClient): Promise<numbe
 
   const { data: candidates, error } = await supabase
     .from("pdfs")
-    .select("id, file_url, title, price")
-    .is("telegram_sent_at", null)
-    .order("price", { ascending: false })
-    .limit(PDF_REVIEW_PER_RUN);
+    .select("id, cluster_id, file_url, title, price")
+    .is("telegram_sent_at", null);
 
   if (error) throw new Error(`Failed to load pdfs for review: ${error.message}`);
   if (!candidates || candidates.length === 0) return 0;
 
-  for (const pdf of candidates) {
+  // pdfs has no score column of its own — every other stage in this
+  // pipeline prioritizes by problem_clusters.score, so join back to it
+  // here too rather than ordering by price (which only loosely correlates
+  // with rank).
+  const clusterIds = candidates.map((p) => p.cluster_id as string);
+  const { data: clusters, error: clustersErr } = await supabase
+    .from("problem_clusters")
+    .select("id, score")
+    .in("id", clusterIds);
+  if (clustersErr) throw new Error(`Failed to load cluster scores for pdf review ordering: ${clustersErr.message}`);
+
+  const scoreByClusterId = new Map((clusters ?? []).map((c) => [c.id as string, (c.score as number) ?? 0]));
+  const ordered = candidates
+    .slice()
+    .sort(
+      (a, b) =>
+        (scoreByClusterId.get(b.cluster_id as string) ?? 0) - (scoreByClusterId.get(a.cluster_id as string) ?? 0),
+    )
+    .slice(0, PDF_REVIEW_PER_RUN);
+
+  for (const pdf of ordered) {
     const caption = [
       `<b>${escapeHtml(pdf.title as string)}</b>`,
       "",
@@ -38,12 +56,12 @@ export async function sendPdfsForReview(supabase: SupabaseClient): Promise<numbe
     ]);
   }
 
-  const sentIds = candidates.map((p) => p.id as string);
+  const sentIds = ordered.map((p) => p.id as string);
   const { error: updateErr } = await supabase
     .from("pdfs")
     .update({ telegram_sent_at: new Date().toISOString() })
     .in("id", sentIds);
   if (updateErr) throw new Error(`Failed to mark pdfs as sent for review: ${updateErr.message}`);
 
-  return candidates.length;
+  return ordered.length;
 }
