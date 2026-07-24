@@ -28,14 +28,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const callback = update.callback_query;
   const message = update.message;
 
-  // Temporary — /scrape and /cluster have produced zero visible effect and
-  // zero trace in logs twice in a row, including after confirming the
-  // chat-id-mismatch logging (lib change 627baf5) was live. That rules out
-  // the auth-mismatch theory; logging the raw body removes the guesswork
-  // about what Telegram is actually sending instead of what's assumed.
-  // Remove once /scrape and /cluster are confirmed working.
-  console.log("Incoming Telegram update:", JSON.stringify(req.body));
-
   if (callback?.data?.startsWith("approve:")) {
     await handleApprove(callback);
   } else if (callback?.data?.startsWith("publish:")) {
@@ -44,28 +36,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await handleApproveBlog(callback);
   } else if (callback?.data?.startsWith("gumroad_done:")) {
     await handleGumroadDone(callback);
-  } else if (message?.text === "/scrape" || message?.text === "/cluster") {
-    // Split from the auth check (rather than one combined && condition) so
-    // a chat-id mismatch is logged instead of silently falling through to
-    // the generic 200 below with zero trace of why nothing happened.
-    if (!isAuthorizedChat(message.chat.id)) {
-      console.error(
-        `Ignoring ${message.text} from unauthorized chat ${message.chat.id} (expected TELEGRAM_CHAT_ID=${requireEnv("TELEGRAM_CHAT_ID")})`,
-      );
-    } else {
-      // Respond to Telegram immediately — the underlying job can take a
-      // while, and a slow webhook response makes Telegram re-deliver the
-      // same update (double-triggering the job). The invocation keeps
-      // running after this response is sent; the result comes back as a
-      // separate chat message instead of in this HTTP response.
-      res.status(200).json({ ok: true });
-      if (message.text === "/scrape") {
-        await runScrapeCommand(message);
-      } else {
-        await runClusterCommand(message);
-      }
-      return;
-    }
+  } else if (message?.text === "/scrape" && isAuthorizedChat(message.chat.id)) {
+    // Originally tried responding to Telegram immediately and continuing
+    // the work in the same invocation afterward, to dodge Telegram
+    // re-delivering the update if this runs long. That didn't actually
+    // work — confirmed live via three separate attempts, each showing the
+    // exact same signature (fast execution, zero outgoing requests): the
+    // invocation was getting cut short right after the early response was
+    // sent, before the follow-up sendMessage() call could even dispatch.
+    // Awaiting fully before responding (same pattern the callback_query
+    // handlers below already use successfully) is slower per Telegram's
+    // webhook clock, but it's the version that's actually been observed
+    // to work on this runtime. /scrape is a handful of HTTP calls and
+    // should finish well inside Telegram's retry window; /cluster (up to
+    // 5 minutes) is a real risk of a duplicate delivery/re-run if it ever
+    // runs long — accepted for now since scrape/cluster's individual
+    // steps are already mostly idempotent (upsert-on-conflict, status-
+    // gated queries), revisit if a duplicate /cluster run actually causes
+    // a problem in practice.
+    await runScrapeCommand(message);
+  } else if (message?.text === "/cluster" && isAuthorizedChat(message.chat.id)) {
+    await runClusterCommand(message);
+  } else if ((message?.text === "/scrape" || message?.text === "/cluster") && !isAuthorizedChat(message.chat.id)) {
+    console.error(
+      `Ignoring ${message.text} from unauthorized chat ${message.chat.id} (expected TELEGRAM_CHAT_ID=${requireEnv("TELEGRAM_CHAT_ID")})`,
+    );
   }
 
   // Always 200, including for anything we don't handle — a non-200 makes
