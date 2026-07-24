@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSupabaseClient } from "../lib/supabase.js";
 import { embedTexts } from "../lib/voyage.js";
 import { cosineSimilarity } from "../lib/similarity.js";
-import { computeScore } from "../lib/scoring.js";
 import { CLUSTER_SIMILARITY_THRESHOLD } from "../lib/config.js";
 import { isAuthorizedCronRequest } from "../lib/cronAuth.js";
 import { notifyTopClusters } from "../lib/notifyClusters.js";
+import { recomputeClusterAggregates } from "../lib/clusterAggregates.js";
 import { researchApprovedClusters } from "../lib/researchClusters.js";
 import { generatePdfsForResearchedClusters } from "../lib/generatePdfs.js";
 
@@ -126,33 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const idx of touchedPoolIndices) {
       const cluster = pool[idx];
       if (!cluster?.id) continue;
-
-      const { data: memberIdRows, error: memberIdsErr } = await supabase
-        .from("cluster_members")
-        .select("raw_problem_id")
-        .eq("cluster_id", cluster.id);
-      if (memberIdsErr) {
-        throw new Error(`Failed to load members for cluster ${cluster.id}: ${memberIdsErr.message}`);
-      }
-
-      const ids = (memberIdRows ?? []).map((m) => m.raw_problem_id as string);
-      const { data: members, error: membersErr } = await supabase
-        .from("raw_problems")
-        .select("source, engagement_score")
-        .in("id", ids);
-      if (membersErr) {
-        throw new Error(`Failed to load raw_problems for cluster ${cluster.id}: ${membersErr.message}`);
-      }
-
-      const sourceCount = new Set((members ?? []).map((m) => m.source as string)).size;
-      const totalEngagement = (members ?? []).reduce((sum, m) => sum + ((m.engagement_score as number) ?? 0), 0);
-      const score = computeScore(sourceCount, totalEngagement);
-
-      const { error: updateErr } = await supabase
-        .from("problem_clusters")
-        .update({ source_count: sourceCount, total_engagement: totalEngagement, score })
-        .eq("id", cluster.id);
-      if (updateErr) throw new Error(`Failed to update cluster ${cluster.id}: ${updateErr.message}`);
+      await recomputeClusterAggregates(supabase, cluster.id);
     }
 
     newClustersCount = pool.filter((c) => c.isNew).length;
