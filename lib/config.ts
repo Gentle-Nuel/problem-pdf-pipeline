@@ -15,6 +15,11 @@ export interface ScrapeTarget {
 // more than once now by adding an unverified name/slug and finding out
 // live instead of checking first.
 //
+// Photography added next, live-verified first this time — the site slug
+// is `photo` (photo.stackexchange.com), NOT `photography`, which is
+// exactly the kind of plausible-but-wrong name that broke
+// "home-automation" above.
+//
 // Two sites deliberately NOT added despite being otherwise good
 // candidates:
 // - Personal Finance & Money SE — see docs/spec.md "Guardrails": its
@@ -35,6 +40,7 @@ export const SCRAPE_TARGETS: ScrapeTarget[] = [
   { site: "cooking" },
   { site: "gaming" },
   { site: "outdoors" },
+  { site: "photo" },
 ];
 
 export const SCRAPE_LIMIT_PER_TARGET = 25;
