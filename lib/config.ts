@@ -3,11 +3,20 @@ export interface ScrapeTarget {
   tag?: string;
 }
 
-// diy/cooking were the starting sites; gaming/outdoors/home-automation
-// added once the full pipeline (steps 1-9) was proven out end to end —
-// same "safe practical problem, no regulated-advice surface" shape, no
-// blocklist tension. Two sites deliberately NOT added despite being
-// otherwise good candidates:
+// diy/cooking were the starting sites; gaming/outdoors added once the
+// full pipeline (steps 1-9) was proven out end to end — same "safe
+// practical problem, no regulated-advice surface" shape, no blocklist
+// tension. "home-automation" was tried alongside them and removed —
+// Stack Exchange's API returned "No site found for name `home-automation`"
+// (a real live 400, not a slug-format issue), meaning this either isn't
+// an independent Stack Exchange site at all or uses some other API site
+// identifier. Don't re-add without live-verifying the actual site exists
+// and its real `site` API parameter first — this project has been burned
+// more than once now by adding an unverified name/slug and finding out
+// live instead of checking first.
+//
+// Two sites deliberately NOT added despite being otherwise good
+// candidates:
 // - Personal Finance & Money SE — see docs/spec.md "Guardrails": its
 //   highest-engagement content is largely regulated financial advice,
 //   which conflicts with the regulated-advice blocklist rather than being
@@ -26,7 +35,6 @@ export const SCRAPE_TARGETS: ScrapeTarget[] = [
   { site: "cooking" },
   { site: "gaming" },
   { site: "outdoors" },
-  { site: "home-automation" },
 ];
 
 export const SCRAPE_LIMIT_PER_TARGET = 25;
