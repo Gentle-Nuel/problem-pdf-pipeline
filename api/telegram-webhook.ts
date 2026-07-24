@@ -36,19 +36,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await handleApproveBlog(callback);
   } else if (callback?.data?.startsWith("gumroad_done:")) {
     await handleGumroadDone(callback);
-  } else if (message?.text === "/scrape" && isAuthorizedChat(message.chat.id)) {
-    // Respond to Telegram immediately — runScrape can take a while, and a
-    // slow webhook response makes Telegram re-deliver the same update
-    // (double-triggering the job). The invocation keeps running after
-    // this response is sent; the result comes back as a separate chat
-    // message instead of in this HTTP response.
-    res.status(200).json({ ok: true });
-    await runScrapeCommand(message);
-    return;
-  } else if (message?.text === "/cluster" && isAuthorizedChat(message.chat.id)) {
-    res.status(200).json({ ok: true });
-    await runClusterCommand(message);
-    return;
+  } else if (message?.text === "/scrape" || message?.text === "/cluster") {
+    // Split from the auth check (rather than one combined && condition) so
+    // a chat-id mismatch is logged instead of silently falling through to
+    // the generic 200 below with zero trace of why nothing happened.
+    if (!isAuthorizedChat(message.chat.id)) {
+      console.error(
+        `Ignoring ${message.text} from unauthorized chat ${message.chat.id} (expected TELEGRAM_CHAT_ID=${requireEnv("TELEGRAM_CHAT_ID")})`,
+      );
+    } else {
+      // Respond to Telegram immediately — the underlying job can take a
+      // while, and a slow webhook response makes Telegram re-deliver the
+      // same update (double-triggering the job). The invocation keeps
+      // running after this response is sent; the result comes back as a
+      // separate chat message instead of in this HTTP response.
+      res.status(200).json({ ok: true });
+      if (message.text === "/scrape") {
+        await runScrapeCommand(message);
+      } else {
+        await runClusterCommand(message);
+      }
+      return;
+    }
   }
 
   // Always 200, including for anything we don't handle — a non-200 makes
