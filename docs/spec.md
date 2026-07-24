@@ -57,7 +57,7 @@ create table problem_clusters (
   source_count int default 0,        -- how many distinct sources it appeared on
   total_engagement int default 0,
   score numeric,                     -- computed rank
-  status text default 'discovered',  -- discovered -> approved -> researched -> drafted -> published
+  status text default 'discovered',  -- discovered -> approved -> researched -> drafted -> approved_for_publish -> published
   created_at timestamptz default now()
 );
 
@@ -95,7 +95,7 @@ create table pdfs (
 3. **Approve (via Telegram bot)** — bot posts top-ranked clusters to the builder's phone; a tap sets `status = 'approved'`.
 4. **Research** — on approval, a function calls Gemini (with Google Search grounding) to research the approved problem, writes findings to `research_docs`.
 5. **Draft + generate PDF** — research is structured into a guide (problem, causes, step-by-step fix, resources) and rendered to PDF. Template includes the standard disclaimer boilerplate.
-6. **Review (via Telegram bot)** — bot sends the rendered PDF (or a summary) to the builder's phone before it goes live. A second tap is required to actually push to Gumroad. This is a deliberate gap-fill: without it, a shallow or wrong guide could go live unreviewed under the builder's store.
+6. **Review (via Telegram bot)** — bot sends the rendered PDF itself (not just a summary) to the builder's phone before it goes live, with an "Approve for Publish" button. A tap sets `status = 'approved_for_publish'` — deliberately not `'published'` yet, since no Gumroad push has actually happened at that point (step 9 below isn't built). This is a deliberate gap-fill: without it, a shallow or wrong guide could go live unreviewed under the builder's store. Until step 9's API integration exists, this step doubles as the manual-publish handoff described below — the sent PDF + title is already everything needed to list it on Gumroad by hand.
 7. **Publish** — on approval, PDF pushed to Gumroad via API (or bot sends the finished PDF + suggested listing copy for manual upload while the API integration is still basic).
 
 **Note on failure handling:** none of the above stages currently have retry/dead-letter logic — acceptable to skip for v0, but a failed research or PDF step will currently just die silently. Worth a basic error-logging step even before full retry logic exists.

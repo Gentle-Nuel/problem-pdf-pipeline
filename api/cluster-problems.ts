@@ -8,6 +8,7 @@ import { notifyTopClusters } from "../lib/notifyClusters.js";
 import { recomputeClusterAggregates } from "../lib/clusterAggregates.js";
 import { researchApprovedClusters } from "../lib/researchClusters.js";
 import { generatePdfsForResearchedClusters } from "../lib/generatePdfs.js";
+import { sendPdfsForReview } from "../lib/reviewPdfs.js";
 
 interface RawProblem {
   id: string;
@@ -144,6 +145,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 10. Render PDFs for researched clusters.
   const drafted = await generatePdfsForResearchedClusters(supabase);
 
+  // 11. Send drafted PDFs to Telegram for pre-publish review — same
+  // "runs every time" reasoning as notify/research/pdf above.
+  const reviewSent = await sendPdfsForReview(supabase);
+
   return res.status(200).json({
     ok: true,
     processed: unclustered.length,
@@ -152,5 +157,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     notified,
     researched,
     drafted,
+    reviewSent,
   });
 }

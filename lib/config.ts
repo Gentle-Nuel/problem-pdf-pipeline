@@ -36,3 +36,7 @@ export const PDF_PER_RUN = 3;
 // How many not-yet-PAA-checked clusters to cross-validate against Google's
 // autocomplete per run — see lib/scrapeGooglePaa.ts.
 export const GOOGLE_PAA_CLUSTERS_PER_RUN = 5;
+
+// How many drafted-but-not-yet-sent PDFs to send to Telegram for
+// pre-publish review per run — see lib/reviewPdfs.ts.
+export const PDF_REVIEW_PER_RUN = 5;
