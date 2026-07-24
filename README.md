@@ -18,7 +18,9 @@ Build order (see spec for detail):
 - [x] 7. Pre-publish review tap (confirmed working live)
 - [x] 8a. Companion blog draft + humanize pipeline (confirmed working live, first try)
 - [x] 8b. Static site deploy (confirmed working live)
-- [x] 9. Gumroad publish handoff (manual, not API — Gumroad's API can't create a product with a file at all, verified live; see below) (code in — needs live test)
+- [x] 9. Gumroad publish handoff (manual, not API — Gumroad's API can't create a product with a file at all, verified live; see below) (confirmed working live, first try)
+
+**Build order complete.** Every step from the original spec, plus the 2b gap-fill, is built and confirmed working against real data — scrape through cross-platform ranking, Telegram approval, AI research, PDF generation, pre-publish review, a live companion blog site with real SEO plumbing, and the Gumroad handoff. The pipeline can run a real problem from "someone asked this on Stack Exchange" to "a priced guide sitting in front of you ready to sell" without needing a PC at any point.
 
 ## Setup
 
@@ -269,6 +271,6 @@ There's no API call here to actually create the listing — the caption's instru
 5. Actually go create the listing in Gumroad's dashboard using that material — real practice for the actual workflow this step exists to support.
 6. Tap the button, then check `problem_clusters.status` in Supabase — should now read `published`, and `pdfs.published_at` should be set.
 
-Not yet live-tested — code typechecks clean and reuses the same `sendDocument`/callback-handler pattern already proven in steps 7 and 8a, but the manual-listing step itself is inherently something only you can actually do.
+**Confirmed working live, first try:** `gumroadHandoffSent: 1` on the trigger run. Telegram message arrived with the PDF attached, correct title/price/generated description, clear manual-listing instructions, and the "✅ Mark as Published" button. Tapped it — `problem_clusters.status` correctly flipped to `published` and `pdfs.published_at` was set.
 
 `blogPublished: 1` on the trigger run, `blog_posts.status` correctly flipped to `published` with a real `published_url`. Opened the live URL directly — title, disclaimer (identical wording to the PDF's), body content, and a working link back to the source PDF all rendered correctly. `sitemap-index.xml` and `robots.txt` both resolved with the real production domain (not the `example.vercel.app` placeholder), and `robots.txt` correctly allows indexing with a `Sitemap:` line pointing at the real sitemap.
