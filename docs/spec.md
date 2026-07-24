@@ -11,7 +11,7 @@ An automated pipeline that finds real problems people are searching for online (
 ## Tech stack
 - **Hosting/compute:** Vercel (cron functions, API routes) — Puppeteer PDF rendering must use `@sparticuz/chromium`, not full Puppeteer, or the function exceeds Vercel's size/memory limits. Cron frequency and function timeout are gated by plan (Hobby = daily cron only, short timeouts) — budget for Pro from the start if the pipeline needs to run more than once a day or steps run long.
 - **Database:** Supabase (Postgres)
-- **Control interface:** Telegram bot
+- **Control interface:** Telegram bot — approval taps, plus on-demand `/scrape` and `/cluster` commands (`api/telegram-webhook.ts`) that run the same logic as the cron-triggered endpoints (`lib/runScrape.ts`, `lib/runClusterPipeline.ts`) without needing to open a browser. Restricted to the configured `TELEGRAM_CHAT_ID`. The webhook responds to Telegram immediately and keeps running in the same invocation, replying with results as a follow-up message — a slow webhook response would make Telegram re-deliver the update and double-trigger the run.
 - **AI:** Gemini (research step — swapped from the original Claude plan: Anthropic's console requires a paid credit purchase up front, Gemini's free tier via aistudio.google.com doesn't. Easy to swap back later once funded — the original Claude implementation is in git history); **Voyage AI** for embeddings (Anthropic's recommended partner — Anthropic itself has no embeddings endpoint)
 - **Sales:** Gumroad (API for publishing, or manual upload initially)
 - **PDF generation:** Puppeteer via `@sparticuz/chromium` (HTML → PDF)

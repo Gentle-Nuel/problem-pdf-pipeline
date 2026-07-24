@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSupabaseClient } from "../lib/supabase.js";
-import { answerCallbackQuery, editMessageText, editMessageCaption } from "../lib/telegram.js";
+import { answerCallbackQuery, editMessageText, editMessageCaption, sendMessage, escapeHtml } from "../lib/telegram.js";
+import { requireEnv } from "../lib/env.js";
+import { runScrape } from "../lib/runScrape.js";
+import { runClusterPipeline } from "../lib/runClusterPipeline.js";
 
 interface TelegramUpdate {
   callback_query?: {
@@ -8,6 +11,7 @@ interface TelegramUpdate {
     data?: string;
     message?: { message_id: number; chat: { id: number }; text?: string; caption?: string };
   };
+  message?: { message_id: number; chat: { id: number }; text?: string };
 }
 
 // Telegram calls this directly (not us), so it's authorized via the secret
@@ -22,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const update = req.body as TelegramUpdate;
   const callback = update.callback_query;
+  const message = update.message;
 
   if (callback?.data?.startsWith("approve:")) {
     await handleApprove(callback);
@@ -31,11 +36,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await handleApproveBlog(callback);
   } else if (callback?.data?.startsWith("gumroad_done:")) {
     await handleGumroadDone(callback);
+  } else if (message?.text === "/scrape" && isAuthorizedChat(message.chat.id)) {
+    // Respond to Telegram immediately — runScrape can take a while, and a
+    // slow webhook response makes Telegram re-deliver the same update
+    // (double-triggering the job). The invocation keeps running after
+    // this response is sent; the result comes back as a separate chat
+    // message instead of in this HTTP response.
+    res.status(200).json({ ok: true });
+    await runScrapeCommand(message);
+    return;
+  } else if (message?.text === "/cluster" && isAuthorizedChat(message.chat.id)) {
+    res.status(200).json({ ok: true });
+    await runClusterCommand(message);
+    return;
   }
 
   // Always 200, including for anything we don't handle — a non-200 makes
   // Telegram retry the same update repeatedly.
   return res.status(200).json({ ok: true });
+}
+
+// Only the configured builder chat can trigger a pipeline run this way —
+// anyone who finds/messages the bot otherwise gets silently ignored rather
+// than being able to kick off scrapes or spend API quota.
+function isAuthorizedChat(chatId: number): boolean {
+  return String(chatId) === requireEnv("TELEGRAM_CHAT_ID");
+}
+
+async function runScrapeCommand(message: NonNullable<TelegramUpdate["message"]>): Promise<void> {
+  const chatId = String(message.chat.id);
+  const supabase = getSupabaseClient();
+
+  await sendMessage(chatId, "Running scrape...");
+  try {
+    const result = await runScrape(supabase);
+    const summaryLines = Object.entries(result.summary)
+      .map(([site, s]) => `${site}: fetched ${s.fetched}, submitted ${s.submitted}, blocked ${s.blocked}`)
+      .join("\n");
+    const failedLine = result.failed.length
+      ? `\nFailed: ${result.failed.map((f) => `${f.target} (${f.error})`).join(", ")}`
+      : "";
+    const paaLine = `Google PAA: checked ${result.googlePaa.checked}, submitted ${result.googlePaa.submitted}, attached ${result.googlePaa.directlyAttached}`;
+    await sendMessage(chatId, `Scrape done.\n\n${escapeHtml(summaryLines)}${escapeHtml(failedLine)}\n\n${escapeHtml(paaLine)}`);
+  } catch (err) {
+    const errMessage = err instanceof Error ? err.message : String(err);
+    await sendMessage(chatId, `Scrape failed: ${escapeHtml(errMessage)}`);
+    throw err;
+  }
+}
+
+async function runClusterCommand(message: NonNullable<TelegramUpdate["message"]>): Promise<void> {
+  const chatId = String(message.chat.id);
+  const supabase = getSupabaseClient();
+
+  await sendMessage(chatId, "Running cluster pipeline...");
+  try {
+    const result = await runClusterPipeline(supabase);
+    const lines = Object.entries(result)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join("\n");
+    await sendMessage(chatId, `Cluster pipeline done.\n\n${escapeHtml(lines)}`);
+  } catch (err) {
+    const errMessage = err instanceof Error ? err.message : String(err);
+    await sendMessage(chatId, `Cluster pipeline failed: ${escapeHtml(errMessage)}`);
+    throw err;
+  }
 }
 
 async function handleApprove(callback: NonNullable<TelegramUpdate["callback_query"]>): Promise<void> {

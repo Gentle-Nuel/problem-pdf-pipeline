@@ -22,7 +22,11 @@ Build order (see spec for detail):
 
 **Build order complete.** Every step from the original spec, plus the 2b gap-fill, is built and confirmed working against real data — scrape through cross-platform ranking, Telegram approval, AI research, PDF generation, pre-publish review, a live companion blog site with real SEO plumbing, and the Gumroad handoff. The pipeline can run a real problem from "someone asked this on Stack Exchange" to "a priced guide sitting in front of you ready to sell" without needing a PC at any point.
 
-**2026-07-24 — wiped all test data.** With every build-order step confirmed live, all data generated during testing (raw problems, clusters, research docs, PDFs, blog posts) was deliberately wiped: DB tables `TRUNCATE ... CASCADE`, the `pdfs` Storage bucket cleared, and the blog site rebuilt down to zero posts. This is the pre-go-live reset — the next scrape → cluster → research → publish cycle starts from a genuinely clean slate, prioritized purely by live cross-platform scores with no leftover test state. The first real Gumroad product listing (the actual "go live" moment) has not happened yet.
+**2026-07-24 — wiped all test data.** With every build-order step confirmed live, all data generated during testing (raw problems, clusters, research docs, PDFs, blog posts) was deliberately wiped: DB tables `TRUNCATE ... CASCADE`, the `pdfs` Storage bucket cleared, and the blog site rebuilt down to zero posts. This is the pre-go-live reset — the next scrape → cluster → research → publish cycle starts from a genuinely clean slate, prioritized purely by live cross-platform scores with no leftover test state.
+
+**2026-07-24 — first real Gumroad listing published.** The pipeline's first actual product went live on Gumroad from a post-wipe run — the "someone asked this on Stack Exchange" → "priced guide for sale" loop closed for real, not just in testing.
+
+**2026-07-24 — Telegram `/scrape` and `/cluster` commands.** The bot now runs the same logic as the cron-triggered endpoints on demand from a chat message, restricted to the configured `TELEGRAM_CHAT_ID` — no need to open a browser to trigger a manual run. See `docs/spec.md`'s Tech stack section for the response-timing detail that makes this safe against Telegram's webhook retry behavior.
 
 ## Setup
 
