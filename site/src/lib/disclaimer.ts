@@ -3,4 +3,4 @@
 // project (own package.json/build), not a real monorepo with shared
 // package tooling.
 export const DISCLAIMER =
-  "This guide is for general informational purposes only and is not professional advice. Always exercise appropriate caution and consult a qualified professional before undertaking electrical, structural, plumbing, or other safety-relevant work, or before acting on health, legal, or financial matters.";
+  "This guide is for general informational purposes only and is not professional advice. If anything here touches safety-relevant work (electrical, structural, plumbing, or similar), or health, legal, or financial matters, always exercise appropriate caution and consult a qualified professional before acting.";
