@@ -16,7 +16,7 @@ Build order (see spec for detail):
 - [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
 - [x] 6. PDF generation + pricing tiers + disclaimer (confirmed working live, first try)
 - [x] 7. Pre-publish review tap (confirmed working live)
-- [ ] 8a. Companion blog draft + humanize pipeline
+- [x] 8a. Companion blog draft + humanize pipeline (code in — needs live test, see below)
 - [ ] 8b. Static site deploy
 - [ ] 9. Gumroad publish
 
@@ -184,3 +184,30 @@ Until step 9's Gumroad API integration exists, this step doubles as the spec's m
 5. Tap it, then check `problem_clusters` in Supabase — that cluster's `status` should now read `approved_for_publish`.
 
 **Confirmed working live, first try:** `reviewSent: 3` on the first run (3 pre-existing `pdfs` rows from earlier step 6 testing that had never been sent for review). All 3 PDFs arrived in Telegram with the file attached and price shown; approving one correctly edited the caption to "✅ Approved for publish."
+
+## Step 8a: Companion blog draft + humanize pipeline
+
+Also folded into `api/cluster-problems.ts`, same cron-limit reasoning as every step since 4. Runs at the end of every invocation, after the PDF review step, in two parts:
+
+1. **Draft + humanize** (`lib/generateBlogPosts.ts`) — picks up clusters that already have a PDF (`status = 'drafted'`) but haven't been blog-drafted yet (`problem_clusters.blog_generated_at is null`, capped at `BLOG_PER_RUN` — `lib/config.ts`, starts at 3). Reuses the same `research_docs` content already generated in step 5, no separate research call. Two Gemini calls per cluster:
+   - `lib/blogDraft.ts` — writes a free, partial post that stands on its own for SEO and ends by pointing at the linked PDF for the complete fix.
+   - `lib/blogHumanize.ts` — a second pass that rewrites the draft against the spec's Guardrails humanize checklist (no em dashes, no inflated-parallelism or inflated-significance phrasing, varied sentence rhythm, a concrete detail, a genuine editorial opinion) — explicitly barred from inventing personal experience, credentials, or testimonials to satisfy that "real opinion" instruction, per the guardrail boundary in `docs/spec.md`.
+
+   Both stages are stored in one `blog_posts` insert (`draft_content`, `final_content`, `status = 'humanized'`) rather than persisting an intermediate `'drafted'`-only row — the two Gemini calls happen synchronously in the same run.
+
+2. **Send for review** (`lib/reviewBlogPosts.ts`) — sends every `status = 'humanized'` post not yet sent (`telegram_sent_at is null`, capped at `BLOG_REVIEW_PER_RUN`, starts at 5) to Telegram as a **preview**, not the full text — Telegram's `sendMessage` caps at 4096 characters and a full post can run past that, so this sends the word count plus the first 600 characters, with an inline **"✅ Approve"** button. The complete `final_content` is already in Supabase either way; approving here is a content-quality gate, not what determines what step 8b actually builds.
+
+Tapping approve hits `api/telegram-webhook.ts`'s new `approve_blog:` handler, which sets that `blog_posts` row's `status` to `approved`. This doesn't publish anything — no site exists yet to publish to (that's step 8b).
+
+**Guardrail note, called out explicitly per `docs/spec.md`'s instruction not to let these quietly drop:** the disclaimer boilerplate is deliberately *not* injected into `draft_content`/`final_content` here — same pattern as PDFs, where `lib/pdfTemplate.ts` injects it at render time rather than baking it into `research_docs`. The disclaimer text is now shared via `lib/disclaimer.ts` (extracted from `lib/pdfTemplate.ts` so both surfaces stay in sync). **Step 8b's site template must inject it — don't forget this when building that step.**
+
+**To wire it up:**
+1. Run `supabase/migrations/0008_blog_posts_tracking.sql` in the Supabase SQL editor (`problem_clusters.blog_generated_at`, `blog_posts.telegram_sent_at` — the `blog_posts` table itself already existed from `0001_init.sql`).
+2. No new API key needed — reuses the same `GEMINI_API_KEY` from step 5.
+3. Push/redeploy, then trigger `/api/cluster-problems?secret=<CRON_SECRET>` — response now includes `blogDrafted` and `blogReviewSent` counts.
+4. Check the `blog_posts` table in Supabase for a new row with both `draft_content` and `final_content` populated.
+5. Check Telegram for a preview message with a word count and an "✅ Approve" button.
+6. Tap it, then check `blog_posts.status` in Supabase — should now read `approved`.
+7. Read through `final_content` for a cluster and sanity-check the humanize pass actually did something — no em dashes, some sentence-length variation, a concrete detail, and critically: no fabricated personal claims ("I've fixed dozens of these...", etc.) — that would be a guardrail violation, not just a style miss, and should be reported back immediately if seen.
+
+Not yet live-tested — code typechecks clean and reuses the same Gemini call pattern already proven in steps 5 and 7 (no new external unknowns like Google's endpoint was), but that's not the same as confirmed.

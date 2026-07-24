@@ -1,10 +1,5 @@
 import { marked } from "marked";
-
-// Generic enough to cover the range of niches this pipeline scrapes from
-// (home/DIY, cooking, and whatever gets added later) — see docs/spec.md
-// "Guardrails". Applies to every PDF regardless of topic.
-const DISCLAIMER =
-  "This guide is for general informational purposes only and is not professional advice. Always exercise appropriate caution and consult a qualified professional before undertaking electrical, structural, plumbing, or other safety-relevant work, or before acting on health, legal, or financial matters.";
+import { DISCLAIMER } from "./disclaimer.js";
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

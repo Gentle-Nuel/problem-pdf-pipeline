@@ -9,6 +9,8 @@ import { recomputeClusterAggregates } from "../lib/clusterAggregates.js";
 import { researchApprovedClusters } from "../lib/researchClusters.js";
 import { generatePdfsForResearchedClusters } from "../lib/generatePdfs.js";
 import { sendPdfsForReview } from "../lib/reviewPdfs.js";
+import { generateBlogPosts } from "../lib/generateBlogPosts.js";
+import { sendBlogPostsForReview } from "../lib/reviewBlogPosts.js";
 
 interface RawProblem {
   id: string;
@@ -149,6 +151,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // "runs every time" reasoning as notify/research/pdf above.
   const reviewSent = await sendPdfsForReview(supabase);
 
+  // 12. Draft + humanize a companion blog post for each PDF'd cluster
+  // (spec step 8a) — reuses research_docs, no separate research step.
+  const blogDrafted = await generateBlogPosts(supabase);
+
+  // 13. Send humanized blog posts to Telegram for review.
+  const blogReviewSent = await sendBlogPostsForReview(supabase);
+
   return res.status(200).json({
     ok: true,
     processed: unclustered.length,
@@ -158,5 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     researched,
     drafted,
     reviewSent,
+    blogDrafted,
+    blogReviewSent,
   });
 }

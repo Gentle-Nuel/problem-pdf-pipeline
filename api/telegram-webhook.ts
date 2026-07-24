@@ -27,6 +27,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await handleApprove(callback);
   } else if (callback?.data?.startsWith("publish:")) {
     await handlePublish(callback);
+  } else if (callback?.data?.startsWith("approve_blog:")) {
+    await handleApproveBlog(callback);
   }
 
   // Always 200, including for anything we don't handle — a non-200 makes
@@ -89,5 +91,27 @@ async function handlePublish(callback: NonNullable<TelegramUpdate["callback_quer
       callback.message.message_id,
       `${originalCaption}\n\n✅ Approved for publish`,
     );
+  }
+}
+
+// Marks a companion blog post's content-quality review as passed (spec
+// step 8a's "Store + review" stage). This does not publish anything —
+// step 8b's static site build is what actually makes final_content live.
+async function handleApproveBlog(callback: NonNullable<TelegramUpdate["callback_query"]>): Promise<void> {
+  const blogPostId = (callback.data as string).slice("approve_blog:".length);
+  const supabase = getSupabaseClient();
+
+  const { error } = await supabase.from("blog_posts").update({ status: "approved" }).eq("id", blogPostId);
+
+  if (error) {
+    await answerCallbackQuery(callback.id, "Failed to approve — check logs.");
+    throw new Error(`Failed to approve blog post ${blogPostId}: ${error.message}`);
+  }
+
+  await answerCallbackQuery(callback.id, "Approved ✅");
+
+  if (callback.message) {
+    const originalText = callback.message.text ?? "";
+    await editMessageText(String(callback.message.chat.id), callback.message.message_id, `${originalText}\n\n✅ Approved`);
   }
 }
