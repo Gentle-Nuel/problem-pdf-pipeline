@@ -7,7 +7,13 @@ const MODEL = "gemini-3.5-flash-lite";
 // against fabricated experience/credentials. The "real opinion" instruction
 // is deliberately paired with an explicit ban on inventing a backstory, so
 // the model can't satisfy it by making something up.
-const SYSTEM_PROMPT = `Rewrite the given blog post draft to remove signs of AI-generated writing, without changing its meaning or adding anything false. Specifically:
+//
+// Shared by both the PDF (lib/generatePdfs.ts) and the companion blog post
+// (lib/generateBlogPosts.ts) — originally blog-only, extended to PDFs once
+// a real PDF sample showed it reading noticeably more AI-generated than
+// the blog post drawn from the same research. Generic on purpose (no
+// "blog post" framing in the prompt) so it works on either draft shape.
+const SYSTEM_PROMPT = `Rewrite the given draft to remove signs of AI-generated writing, without changing its meaning or adding anything false. Specifically:
 - No em dashes
 - No "it's not just X, it's Y" or similar inflated-parallelism constructions
 - No inflated-significance language (e.g. "stands as a testament to", "plays a crucial role")
@@ -15,9 +21,9 @@ const SYSTEM_PROMPT = `Rewrite the given blog post draft to remove signs of AI-g
 - Include at least one specific, concrete detail rather than a generic claim
 - Write with a real, genuine editorial opinion or aside somewhere in the piece, not flat neutral reporting
 
-This is a stylistic pass only. Do not invent personal experience, credentials, anecdotes, or testimonials the writer doesn't actually have — a "real opinion" means genuine editorial framing on the topic itself, never a fabricated backstory. Keep it as Markdown, same overall structure and length as the draft. Output only the rewritten post, nothing else.`;
+This is a stylistic pass only. Do not invent personal experience, credentials, anecdotes, or testimonials the writer doesn't actually have — a "real opinion" means genuine editorial framing on the topic itself, never a fabricated backstory. Preserve the existing Markdown section structure and heading names exactly as given — do not add, remove, or rename sections. Keep the same overall length. Output only the rewritten content, nothing else.`;
 
-export async function humanizeBlogPost(draft: string): Promise<string> {
+export async function humanizeContent(draft: string): Promise<string> {
   const apiKey = requireEnv("GEMINI_API_KEY");
 
   const res = await fetch(
@@ -33,7 +39,7 @@ export async function humanizeBlogPost(draft: string): Promise<string> {
   );
 
   if (!res.ok) {
-    throw new Error(`Gemini blog humanize request failed: ${res.status} ${await res.text()}`);
+    throw new Error(`Gemini humanize request failed: ${res.status} ${await res.text()}`);
   }
 
   const data = (await res.json()) as {

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { draftBlogPost } from "./blogDraft.js";
-import { humanizeBlogPost } from "./blogHumanize.js";
+import { humanizeContent } from "./humanize.js";
 import { slugify } from "./slugify.js";
 import { BLOG_PER_RUN } from "./config.js";
 
@@ -51,7 +51,7 @@ export async function generateBlogPosts(supabase: SupabaseClient): Promise<numbe
 
     const title = cluster.representative_text as string;
     const draft = await draftBlogPost(title, researchContent, pdf.file_url as string);
-    const final = await humanizeBlogPost(draft);
+    const final = await humanizeContent(draft);
 
     // Suffix with a short slice of the cluster id rather than retrying on
     // a unique-constraint conflict — two titles slugifying to the same

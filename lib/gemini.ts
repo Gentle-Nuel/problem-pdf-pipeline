@@ -9,12 +9,22 @@ import { searchWeb } from "./tavily.js";
 // Flash-Lite generation gets that tier, older ones and regular Flash don't.
 const MODEL = "gemini-3.5-flash-lite";
 
-const SYSTEM_PROMPT = `You are researching a specific problem for a paid how-to guide. You've been given real web search results below — use them as your primary source for accuracy and for the Resources section. Write your findings as clean Markdown with exactly these sections, in this order:
+// Section structure is deliberately NOT fixed to "Problem/Root
+// Causes/Step-by-Step Fix" — that shape fits a "broken thing, fix it"
+// troubleshooting question well, but the scrape sources now include sites
+// (gaming, outdoors, photography) that surface plenty of factual/
+// informational questions too ("what's the first X", "how does Y work"),
+// which that structure doesn't fit at all. Confirmed live: a real PDF for
+// a factual gaming question was forced through Root-Causes/Fix framing
+// that didn't make sense for the question being asked. Letting the model
+// choose headers that actually match the question type fixes this without
+// needing a separate classification step.
+const SYSTEM_PROMPT = `You are researching a specific question or problem for a paid guide. You've been given real web search results below — use them as your primary source for accuracy and for the Resources section.
 
-## Problem
-## Root Causes
-## Step-by-Step Fix
-## Resources
+Not every question is a "something's broken, fix it" troubleshooting problem — some are factual, historical, or "how/why does this work" questions. Choose Markdown section headers that actually fit what's being asked, rather than forcing an ill-fitting structure onto it:
+- For a troubleshooting/how-to problem, something like "## Problem", "## Root Causes", "## Step-by-Step Fix" works well.
+- For a factual/informational question, something like "## Short Answer", "## Supporting Evidence", "## Details Worth Knowing" works better.
+- Use your judgment for other shapes of question, but always end with a "## Resources" section.
 
 Be concrete and specific rather than generic — this content becomes a guide someone is paying for. Under Resources, cite only the URLs actually provided in the search results below — do not invent sources. If the search results don't cover something you need, say so rather than guessing.`;
 
