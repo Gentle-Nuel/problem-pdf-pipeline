@@ -3,12 +3,31 @@ export interface ScrapeTarget {
   tag?: string;
 }
 
-// Starting sites, per the build order. Add more sites/tags once these are
-// proven out end to end. Personal Finance & Money SE was deliberately left
-// out — see docs/spec.md "Guardrails": that site's highest-engagement
-// content is largely regulated financial advice, which conflicts with the
-// regulated-advice blocklist rather than being caught cleanly by it.
-export const SCRAPE_TARGETS: ScrapeTarget[] = [{ site: "diy" }, { site: "cooking" }];
+// diy/cooking were the starting sites; gaming/outdoors/home-automation
+// added once the full pipeline (steps 1-9) was proven out end to end —
+// same "safe practical problem, no regulated-advice surface" shape, no
+// blocklist tension. Two sites deliberately NOT added despite being
+// otherwise good candidates:
+// - Personal Finance & Money SE — see docs/spec.md "Guardrails": its
+//   highest-engagement content is largely regulated financial advice,
+//   which conflicts with the regulated-advice blocklist rather than being
+//   caught cleanly by it.
+// - Pets SE — same shape of problem as Personal Finance: its
+//   highest-engagement content skews into "is this normal / should I see
+//   a vet" territory, i.e. health advice for animals.
+// Electronics and Travel SE are plausible future additions but need
+// tag-level scoping first, not whole-site inclusion — Electronics'
+// mains-wiring-adjacent tags carry the same risk as DIY's electrical
+// panel questions, and Travel's visa/immigration tags are regulated-advice-
+// adjacent the same way Personal Finance is. Exact safe/unsafe tag slugs
+// haven't been verified yet — don't add either without that check first.
+export const SCRAPE_TARGETS: ScrapeTarget[] = [
+  { site: "diy" },
+  { site: "cooking" },
+  { site: "gaming" },
+  { site: "outdoors" },
+  { site: "home-automation" },
+];
 
 export const SCRAPE_LIMIT_PER_TARGET = 25;
 
