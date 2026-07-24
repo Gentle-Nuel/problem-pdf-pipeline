@@ -29,6 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await handlePublish(callback);
   } else if (callback?.data?.startsWith("approve_blog:")) {
     await handleApproveBlog(callback);
+  } else if (callback?.data?.startsWith("gumroad_done:")) {
+    await handleGumroadDone(callback);
   }
 
   // Always 200, including for anything we don't handle — a non-200 makes
@@ -56,12 +58,10 @@ async function handleApprove(callback: NonNullable<TelegramUpdate["callback_quer
 }
 
 // Marks the cluster behind a reviewed PDF ready to publish (spec step 7).
-// Deliberately a distinct status from 'published' — no Gumroad push has
-// actually happened yet (step 9 isn't built), so 'published' would be an
-// inaccurate claim about the data. This is also the point where the
-// builder already has everything needed (the sent PDF + title) to list it
-// on Gumroad by hand in the meantime, per docs/spec.md's manual-fallback
-// note for step 9.
+// Deliberately a distinct status from 'published' — this tap alone doesn't
+// put anything on Gumroad, it just clears the review gate. Step 9
+// (lib/sendGumroadHandoff.ts) picks up 'approved_for_publish' clusters
+// from here and sends the actual manual-listing materials.
 async function handlePublish(callback: NonNullable<TelegramUpdate["callback_query"]>): Promise<void> {
   const pdfId = (callback.data as string).slice("publish:".length);
   const supabase = getSupabaseClient();
@@ -113,5 +113,48 @@ async function handleApproveBlog(callback: NonNullable<TelegramUpdate["callback_
   if (callback.message) {
     const originalText = callback.message.text ?? "";
     await editMessageText(String(callback.message.chat.id), callback.message.message_id, `${originalText}\n\n✅ Approved`);
+  }
+}
+
+// Confirms the manual Gumroad listing is live (spec step 9). This tap is
+// the whole "publish" event as far as this pipeline can automate it —
+// Gumroad's API doesn't support creating a product with a file at all
+// (verified live, see docs/spec.md), so there's no completion callback to
+// wait on the way step 8b has for the site's deploy hook. gumroad_url
+// stays whatever it already was (usually still null) — the caption this
+// replies to already told the builder they can paste it into
+// pdfs.gumroad_url in Supabase manually if they want it tracked.
+async function handleGumroadDone(callback: NonNullable<TelegramUpdate["callback_query"]>): Promise<void> {
+  const pdfId = (callback.data as string).slice("gumroad_done:".length);
+  const supabase = getSupabaseClient();
+
+  const { data: pdf, error: pdfErr } = await supabase.from("pdfs").select("cluster_id").eq("id", pdfId).single();
+  if (pdfErr || !pdf) {
+    await answerCallbackQuery(callback.id, "Failed to find PDF — check logs.");
+    throw new Error(`Failed to load pdf ${pdfId}: ${pdfErr?.message ?? "not found"}`);
+  }
+
+  const now = new Date().toISOString();
+
+  const { error: pdfUpdateErr } = await supabase.from("pdfs").update({ published_at: now }).eq("id", pdfId);
+  if (pdfUpdateErr) throw new Error(`Failed to mark pdf ${pdfId} published: ${pdfUpdateErr.message}`);
+
+  const { error: clusterUpdateErr } = await supabase
+    .from("problem_clusters")
+    .update({ status: "published" })
+    .eq("id", pdf.cluster_id as string);
+  if (clusterUpdateErr) {
+    throw new Error(`Failed to mark cluster ${pdf.cluster_id} published: ${clusterUpdateErr.message}`);
+  }
+
+  await answerCallbackQuery(callback.id, "Marked published ✅");
+
+  if (callback.message) {
+    const originalCaption = callback.message.caption ?? "";
+    await editMessageCaption(
+      String(callback.message.chat.id),
+      callback.message.message_id,
+      `${originalCaption}\n\n✅ Published`,
+    );
   }
 }

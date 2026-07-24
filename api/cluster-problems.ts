@@ -12,6 +12,7 @@ import { sendPdfsForReview } from "../lib/reviewPdfs.js";
 import { generateBlogPosts } from "../lib/generateBlogPosts.js";
 import { sendBlogPostsForReview } from "../lib/reviewBlogPosts.js";
 import { publishApprovedBlogPosts } from "../lib/publishBlogPosts.js";
+import { sendGumroadHandoff } from "../lib/sendGumroadHandoff.js";
 
 interface RawProblem {
   id: string;
@@ -164,6 +165,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // PUBLIC_SITE_URL are set — see lib/publishBlogPosts.ts.
   const blogPublished = await publishApprovedBlogPosts(supabase);
 
+  // 15. Send the manual Gumroad-listing handoff for any reviewed-and-
+  // approved PDFs (spec step 9) — see lib/sendGumroadHandoff.ts for why
+  // this is a manual handoff, not an API push.
+  const gumroadHandoffSent = await sendGumroadHandoff(supabase);
+
   return res.status(200).json({
     ok: true,
     processed: unclustered.length,
@@ -176,5 +182,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     blogDrafted,
     blogReviewSent,
     blogPublished,
+    gumroadHandoffSent,
   });
 }

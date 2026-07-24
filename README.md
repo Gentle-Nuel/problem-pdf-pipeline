@@ -18,7 +18,7 @@ Build order (see spec for detail):
 - [x] 7. Pre-publish review tap (confirmed working live)
 - [x] 8a. Companion blog draft + humanize pipeline (confirmed working live, first try)
 - [x] 8b. Static site deploy (confirmed working live)
-- [ ] 9. Gumroad publish
+- [x] 9. Gumroad publish handoff (manual, not API — Gumroad's API can't create a product with a file at all, verified live; see below) (code in — needs live test)
 
 ## Setup
 
@@ -250,5 +250,25 @@ A new `site/` subdirectory — a separate Astro static site with its own `packag
 - Vercel's mobile "Application Preset" picker never populated after selecting `site` as Root Directory — worked around by manually confirming the Build Command (`npm run build`) and Output Directory (`dist`) in Build and Output Settings instead; the build succeeded regardless, since Vercel actually detects the framework server-side from `package.json`, not from that display field.
 - The Supabase service role key got mangled on a long mobile paste, producing "Invalid API key" on the first real deploy attempt (distinct from "Missing..." on the deploy before env vars were set — that distinction is what confirmed it was a bad value, not an absent one). Fixed by clearing the field and re-pasting carefully.
 - One real data gap, not a code bug: the two `blog_posts` rows from step 8a testing predated the `slug` column (added in this step's migration), so their `published_url` came out as `.../null`. One-off SQL backfill fixed both rows; every post created after this point gets a real slug automatically since the column and the generation code shipped together.
+
+## Step 9: Gumroad publish handoff
+
+**Verified before writing any code, not after hitting an error:** checked Gumroad's own API docs plus multiple independent third-party integrations (two MCP servers built to expose Gumroad's API to AI agents, a Postman reference, a PyPI client — all of which would have needed this if it existed, and none of them have it) and a Gumroad GitHub issue explicitly requesting the feature. The finding is unambiguous: **Gumroad's public API cannot create a new product with a file, at all.** It supports reading/editing an *existing* product (enable/disable, variants, offer codes, custom fields) and reading sales data — nothing that creates one. The spec originally framed this as "API push, with manual handoff as a fallback while the integration is basic." That framing was wrong going in — manual handoff isn't a lesser fallback, it's the only version of step 9 that can exist. Updated `docs/spec.md` to say so plainly rather than leave the old assumption uncorrected.
+
+Also folded into `api/cluster-problems.ts` as the final step, same pattern as everything since step 4. `lib/sendGumroadHandoff.ts` picks up every cluster at `status = 'approved_for_publish'` (the step 7 review gate) not yet handed off (`problem_clusters.gumroad_handoff_sent_at is null`, capped at `GUMROAD_HANDOFF_PER_RUN` — `lib/config.ts`, starts at 5), and for each one sends the actual PDF file to Telegram (`sendDocument`, same as step 7) with a caption containing generated listing copy — title, price, and a short description (`lib/gumroadListing.ts`, a plain template, no LLM call needed since the title and price already exist from steps 5/6) — plus an inline **"✅ Mark as Published"** button.
+
+There's no API call here to actually create the listing — the caption's instructions are the deliverable: create the listing by hand in Gumroad's dashboard using the attached PDF and the generated copy, a couple minutes of manual work per guide. Tapping the button (`api/telegram-webhook.ts`'s new `gumroad_done:` handler) sets `pdfs.published_at` and flips `problem_clusters.status` to `published` — the true terminal status, finally accurate now that something has actually gone live. `pdfs.gumroad_url` is **not** captured automatically (there's no completion callback to wait on, unlike step 8b's deploy hook) — the caption tells the builder they can paste the real URL into Supabase manually if they want it tracked for the later sales-feedback scoring idea in the spec's "Pricing strategy" section.
+
+`GUMROAD_ACCESS_TOKEN` (`.env.example`) is not needed for this step and no code currently reads it — kept for a later, unbuilt enhancement (toggling a listing live/hidden, pulling sales data back into scoring) that the API genuinely does support.
+
+**To wire it up:**
+1. Run `supabase/migrations/0010_problem_clusters_gumroad_handoff.sql` in the Supabase SQL editor.
+2. No new API key needed — reuses the same Telegram bot as every other step.
+3. Push/redeploy, then trigger `/api/cluster-problems?secret=<CRON_SECRET>` — response now includes a `gumroadHandoffSent` count. You'll need at least one cluster at `status = 'approved_for_publish'` from step 7 testing (if there isn't one right now, tap "Approve for Publish" on a PDF in Telegram first, then re-trigger).
+4. Check Telegram for a message with the PDF attached, generated title/price/description, and the "✅ Mark as Published" button.
+5. Actually go create the listing in Gumroad's dashboard using that material — real practice for the actual workflow this step exists to support.
+6. Tap the button, then check `problem_clusters.status` in Supabase — should now read `published`, and `pdfs.published_at` should be set.
+
+Not yet live-tested — code typechecks clean and reuses the same `sendDocument`/callback-handler pattern already proven in steps 7 and 8a, but the manual-listing step itself is inherently something only you can actually do.
 
 `blogPublished: 1` on the trigger run, `blog_posts.status` correctly flipped to `published` with a real `published_url`. Opened the live URL directly — title, disclaimer (identical wording to the PDF's), body content, and a working link back to the source PDF all rendered correctly. `sitemap-index.xml` and `robots.txt` both resolved with the real production domain (not the `example.vercel.app` placeholder), and `robots.txt` correctly allows indexing with a `Sitemap:` line pointing at the real sitemap.

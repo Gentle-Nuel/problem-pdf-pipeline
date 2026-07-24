@@ -49,3 +49,8 @@ export const BLOG_PER_RUN = 3;
 // How many humanized-but-not-yet-sent blog posts to send to Telegram for
 // review per run — see lib/reviewBlogPosts.ts.
 export const BLOG_REVIEW_PER_RUN = 5;
+
+// How many approved-for-publish-but-not-yet-handed-off PDFs to send to
+// Telegram for manual Gumroad listing per run — see
+// lib/sendGumroadHandoff.ts.
+export const GUMROAD_HANDOFF_PER_RUN = 5;
