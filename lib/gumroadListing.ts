@@ -12,6 +12,14 @@ import { parseSections, joinSectionNames } from "./excerpt.js";
 // first game with an all-female cast?") got sent to Gumroad promising
 // "root causes" and "a step-by-step fix" it doesn't have and couldn't have,
 // misdescribing the product to a buyer.
+//
+// The opening line has the same trap: "A complete, practical guide to:
+// {title}" assumes title is a task/topic phrase, but representative_text
+// is always a scraped question (that's what an SE title is) — practical
+// ("Is it ok to relabel a breaker?") or purely factual ("What's the first
+// game with an all-female cast?"). "Practical guide to: [trivia question]"
+// doesn't parse. "This guide answers: {title}" fits either shape without
+// needing to classify which one a given title is.
 export function buildGumroadListingCopy(
   title: string,
   price: number,
@@ -26,6 +34,6 @@ export function buildGumroadListingCopy(
 
   return {
     suggestedTitle: title,
-    description: `A complete, practical guide to: ${title}\n\n${covers}\n\nPrice suggestion: $${price} (see docs/spec.md "Pricing strategy" for the reasoning behind this tier).`,
+    description: `This guide answers: ${title}\n\n${covers}\n\nPrice suggestion: $${price} (see docs/spec.md "Pricing strategy" for the reasoning behind this tier).`,
   };
 }
