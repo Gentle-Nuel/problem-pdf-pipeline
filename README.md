@@ -17,7 +17,7 @@ Build order (see spec for detail):
 - [x] 6. PDF generation + pricing tiers + disclaimer (confirmed working live, first try)
 - [x] 7. Pre-publish review tap (confirmed working live)
 - [x] 8a. Companion blog draft + humanize pipeline (confirmed working live, first try)
-- [x] 8b. Static site deploy (code in — needs your manual Vercel project setup + live test, see below)
+- [x] 8b. Static site deploy (confirmed working live)
 - [ ] 9. Gumroad publish
 
 ## Setup
@@ -246,4 +246,9 @@ A new `site/` subdirectory — a separate Astro static site with its own `packag
 9. Wait a minute or two for the site's rebuild to finish (check the Deployments tab on the site's Vercel project), then open `published_url` directly and confirm the post actually renders — title, disclaimer, body, working link back to the PDF.
 10. Check `<published_url>/sitemap-index.xml` and `<published_url>/robots.txt` both load and reference real content, not the placeholder domain.
 
-Not yet live-tested — this is the step most dependent on you actually doing the Vercel project setup above before there's anything to test.
+**Confirmed working live, end to end.** Hit two real issues during setup, both resolved:
+- Vercel's mobile "Application Preset" picker never populated after selecting `site` as Root Directory — worked around by manually confirming the Build Command (`npm run build`) and Output Directory (`dist`) in Build and Output Settings instead; the build succeeded regardless, since Vercel actually detects the framework server-side from `package.json`, not from that display field.
+- The Supabase service role key got mangled on a long mobile paste, producing "Invalid API key" on the first real deploy attempt (distinct from "Missing..." on the deploy before env vars were set — that distinction is what confirmed it was a bad value, not an absent one). Fixed by clearing the field and re-pasting carefully.
+- One real data gap, not a code bug: the two `blog_posts` rows from step 8a testing predated the `slug` column (added in this step's migration), so their `published_url` came out as `.../null`. One-off SQL backfill fixed both rows; every post created after this point gets a real slug automatically since the column and the generation code shipped together.
+
+`blogPublished: 1` on the trigger run, `blog_posts.status` correctly flipped to `published` with a real `published_url`. Opened the live URL directly — title, disclaimer (identical wording to the PDF's), body content, and a working link back to the source PDF all rendered correctly. `sitemap-index.xml` and `robots.txt` both resolved with the real production domain (not the `example.vercel.app` placeholder), and `robots.txt` correctly allows indexing with a `Sitemap:` line pointing at the real sitemap.
