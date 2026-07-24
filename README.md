@@ -10,7 +10,7 @@ Build order (see spec for detail):
 
 - [x] 1. Repo + Supabase schema + Voyage AI key
 - [x] 2. Stack Exchange scraper → `raw_problems` + regulated-advice blocklist (confirmed working live)
-- [x] 2b. Google autocomplete cross-validation (added after steps 2–6 — was in the spec's Data sources but never got a build-order step; `source_count` had been stuck at 1 for every cluster until this) (code in — needs live test, see below)
+- [x] 2b. Google autocomplete cross-validation (added after steps 2–6 — was in the spec's Data sources but never got a build-order step; `source_count` had been stuck at 1 for every cluster until this) (confirmed working live — see below)
 - [x] 3. Clustering + ranking cron (Voyage AI embeddings) (confirmed working live)
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
 - [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
@@ -73,9 +73,7 @@ Deliberately scoped so none of this touches `CLUSTER_SIMILARITY_THRESHOLD` or th
 4. Check `raw_problems` for new rows with `source = google_paa`.
 5. Check `problem_clusters.source_count` for any cluster the run touched — a `directlyAttached` count above 0 should correspond to a real `source_count > 1` on that specific cluster, not just any cluster in the table.
 
-**Confirmed working live (query fix, resilience fix):** `checked: 5, submitted: 16, failed: []` on a clean re-run after the truncation and per-cluster-resilience fixes landed.
-
-**Not yet live-tested: the LLM judgment / direct-attach path.** Code typechecks clean and reuses the same Gemini setup already confirmed working in step 5, but the judgment call itself, the `same`-verdict partitioning, and the direct `cluster_members` attach + score recompute haven't been exercised against real data yet — that's the next test to run.
+**Confirmed working live, end to end:** `checked: 5, submitted: 7, directlyAttached: 5, failed: []`. Checked `problem_clusters` sorted by `source_count` — two clusters now show `source_count: 2` (score 210 and 209), both from a real `source = 'google_paa'` member attached alongside their original `source = 'stackexchange'` member, correctly outranking every remaining single-source cluster (which top out at 119). This is the first time `source_count` has moved off `1` for any cluster since the pipeline went live, and it's for the right reason — an LLM-confirmed match, not a coincidental embedding score.
 
 ## Step 3: Clustering + ranking
 
