@@ -237,7 +237,7 @@ This makes both earlier problems structurally impossible instead of prompt-disco
 6. For a PDF'd cluster's post specifically: confirm it stops after one section and ends with a CTA listing real section names, not an invented description.
 7. Tap approve, then check `blog_posts.status` in Supabase — should now read `approved`.
 
-Not yet re-tested live against this final architecture — needs a fresh cluster through the whole chain, since the already-published test posts predate it.
+**Confirmed working live:** ran a fresh cluster through the whole chain post-rearchitecture. PDF still rendered with all its sections intact; the companion post correctly stopped after just the first section and ended with a programmatic CTA listing the real remaining section names — no invented promises, no coverage overlap with the PDF.
 
 ## Step 8b: Static site deploy
 
