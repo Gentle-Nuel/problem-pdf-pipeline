@@ -15,7 +15,7 @@ Build order (see spec for detail):
 - [x] 4. Telegram bot: list clusters, approve action (confirmed working live)
 - [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
 - [x] 6. PDF generation + pricing tiers + disclaimer (confirmed working live, first try)
-- [ ] 7. Pre-publish review tap
+- [x] 7. Pre-publish review tap (confirmed working live)
 - [ ] 8a. Companion blog draft + humanize pipeline
 - [ ] 8b. Static site deploy
 - [ ] 9. Gumroad publish
@@ -165,3 +165,22 @@ Also folded into `api/cluster-problems.ts` (`lib/generatePdfs.ts`) — same cron
 6. If it errors, send me the Vercel logs — given the caveat above, budget for this taking a few rounds.
 
 **Confirmed working (2026-07-23), first try:** drafted 3 PDFs in a single run. All four checks passed — real row in `pdfs`, real file in Storage, `file_url` opened as a genuinely readable PDF (title, disclaimer box, all four sections, working resource links), cluster `status` advanced to `drafted`. No debugging round needed — a direct result of catching the `headless: "shell"` and `defaultArgs` issues via research before deploying instead of after a crash.
+
+## Step 7: Pre-publish review tap
+
+Also folded into `api/cluster-problems.ts` (`lib/reviewPdfs.ts`), same cron-limit reasoning as steps 4–6. Runs at the end of every invocation, after PDF generation, and picks up every `pdfs` row not yet sent for review (`telegram_sent_at is null`, capped at `PDF_REVIEW_PER_RUN` — `lib/config.ts`, starts at 5).
+
+For each one, sends the actual rendered PDF file to Telegram (`lib/telegram.ts` `sendDocument` — passes the PDF's already-public Supabase Storage URL straight through, Telegram fetches it server-side, no re-upload needed) with a caption showing the title and suggested price, and an inline **"✅ Approve for Publish"** button. This is a genuine review step, not a rubber stamp — the builder can actually open and read the attached PDF before approving.
+
+Tapping it hits `api/telegram-webhook.ts`'s new `publish:` handler, which sets that cluster's `status` to `approved_for_publish` (deliberately *not* `published` — no Gumroad push has happened yet, step 9 isn't built, so claiming otherwise would misrepresent the data) and edits the message caption to confirm (`editMessageCaption`, not `editMessageText` — Telegram rejects `editMessageText` on a message with an attached document). `pdfs.telegram_sent_at` (`supabase/migrations/0007_pdfs_telegram_sent.sql`, run this one too) tracks what's already been sent so nothing repeats.
+
+Until step 9's Gumroad API integration exists, this step doubles as the spec's manual-publish fallback ("bot sends the finished PDF + suggested listing copy for manual upload") — the sent message already has everything needed to list the guide on Gumroad by hand.
+
+**To wire it up:**
+1. Run `supabase/migrations/0007_pdfs_telegram_sent.sql` in the Supabase SQL editor.
+2. No new API key needed — reuses the same Telegram bot from step 4.
+3. Push/redeploy, then trigger `/api/cluster-problems?secret=<CRON_SECRET>` — response now includes a `reviewSent` count.
+4. Check Telegram for a message with the actual PDF attached, a caption with title + price, and the "✅ Approve for Publish" button.
+5. Tap it, then check `problem_clusters` in Supabase — that cluster's `status` should now read `approved_for_publish`.
+
+**Confirmed working live, first try:** `reviewSent: 3` on the first run (3 pre-existing `pdfs` rows from earlier step 6 testing that had never been sent for review). All 3 PDFs arrived in Telegram with the file attached and price shown; approving one correctly edited the caption to "✅ Approved for publish."
