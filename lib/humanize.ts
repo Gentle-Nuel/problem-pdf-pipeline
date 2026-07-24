@@ -26,6 +26,18 @@ const SYSTEM_PROMPT = `Rewrite the given draft to remove signs of AI-generated w
 
 This is a stylistic pass only. Do not invent personal experience, credentials, anecdotes, or testimonials the writer doesn't actually have — a "real opinion" means genuine editorial framing on the topic itself, never a fabricated backstory. Preserve the existing Markdown section structure and heading names exactly as given — do not add, remove, or rename sections. Keep the same overall length. Output only the rewritten content, nothing else.`;
 
+// Deterministic safety net for the "No em dashes" instruction above — a
+// prompted ban is a request, not a guarantee, and one has already been
+// observed slipping through. Comma is the closest drop-in replacement for
+// how an em dash is actually used here (a brief aside or clause join); it
+// can occasionally read as a comma splice, but that's a minor, common-in-
+// informal-writing tradeoff against a much bigger authenticity tell.
+const EM_DASH_RE = /\s*—\s*/g;
+
+export function stripEmDashes(text: string): string {
+  return text.replace(EM_DASH_RE, ", ").replace(/,\s*,/g, ",").replace(/,\s*([.!?])/g, "$1");
+}
+
 export async function humanizeContent(draft: string): Promise<string> {
   const apiKey = requireEnv("GEMINI_API_KEY");
 
@@ -55,5 +67,5 @@ export async function humanizeContent(draft: string): Promise<string> {
     throw new Error(`Gemini returned no humanized content. finishReason: ${candidate?.finishReason ?? "unknown"}`);
   }
 
-  return text;
+  return stripEmDashes(text);
 }
