@@ -1,14 +1,16 @@
 import { wordCount } from "./pricing.js";
 
-interface Section {
+export interface Section {
   header: string;
   body: string;
 }
 
 // Splits on level-2 Markdown headers ("## Header"). Matches the shape the
 // research prompt (lib/gemini.ts) always produces: a few content sections
-// followed by a mandatory "## Resources" section.
-function parseSections(content: string): Section[] {
+// followed by a mandatory "## Resources" section. Exported for
+// lib/gumroadListing.ts, which needs the same real-header-list derivation
+// for its listing copy.
+export function parseSections(content: string): Section[] {
   const lines = content.split("\n");
   const sections: Section[] = [];
   let current: Section | null = null;
@@ -108,6 +110,15 @@ export function buildBlogExcerpt(humanizedContent: string): BlogExcerpt {
   return { excerptBody, remainingSectionNames };
 }
 
+// Shared by buildContinuationCta below and lib/gumroadListing.ts — both need
+// to turn a list of real section headers into a natural-language "X, Y, and
+// Z" list.
+export function joinSectionNames(names: string[]): string {
+  return names.length === 1
+    ? (names[0] as string)
+    : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
 // Programmatic, not LLM-written — lists real section headers that exist in
 // the document rather than letting a model invent marketing copy about
 // what's coming, which is exactly what caused the overselling problem
@@ -117,10 +128,5 @@ export function buildContinuationCta(remainingSectionNames: string[], guideUrl: 
     return `Read the [complete guide](${guideUrl}) for the full breakdown.`;
   }
 
-  const list =
-    remainingSectionNames.length === 1
-      ? remainingSectionNames[0]
-      : `${remainingSectionNames.slice(0, -1).join(", ")}, and ${remainingSectionNames[remainingSectionNames.length - 1]}`;
-
-  return `The complete guide also covers: ${list}. [Read the full guide here](${guideUrl}).`;
+  return `The complete guide also covers: ${joinSectionNames(remainingSectionNames)}. [Read the full guide here](${guideUrl}).`;
 }

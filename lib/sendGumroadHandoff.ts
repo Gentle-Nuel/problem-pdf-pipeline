@@ -44,8 +44,22 @@ export async function sendGumroadHandoff(supabase: SupabaseClient): Promise<numb
     const pdf = pdfRows?.[0];
     if (!pdf) throw new Error(`No pdf found for cluster ${cluster.id} despite status=approved_for_publish`);
 
+    const { data: researchRows, error: researchErr } = await supabase
+      .from("research_docs")
+      .select("humanized_content")
+      .eq("cluster_id", cluster.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (researchErr) {
+      throw new Error(`Failed to load research for cluster ${cluster.id}: ${researchErr.message}`);
+    }
+    const humanizedContent = researchRows?.[0]?.humanized_content as string | undefined;
+    if (!humanizedContent) {
+      throw new Error(`No humanized_content found for cluster ${cluster.id} despite status=approved_for_publish`);
+    }
+
     const title = cluster.representative_text as string;
-    const { description } = buildGumroadListingCopy(title, pdf.price as number);
+    const { description } = buildGumroadListingCopy(title, pdf.price as number, humanizedContent);
 
     const caption = [
       `<b>Ready to list on Gumroad</b>`,
