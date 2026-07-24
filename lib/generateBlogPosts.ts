@@ -36,6 +36,7 @@ export async function generateBlogPosts(supabase: SupabaseClient): Promise<numbe
     .select("id, representative_text")
     .in("status", ["drafted", "blog_only"])
     .is("blog_generated_at", null)
+    .not("score", "is", null)
     .order("score", { ascending: false })
     .limit(BLOG_PER_RUN);
 

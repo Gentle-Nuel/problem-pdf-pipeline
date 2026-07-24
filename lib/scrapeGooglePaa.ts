@@ -31,6 +31,7 @@ export async function scrapeGooglePaa(supabase: SupabaseClient): Promise<{
     .from("problem_clusters")
     .select("id, representative_text")
     .is("paa_checked_at", null)
+    .not("score", "is", null)
     .order("score", { ascending: false })
     .limit(GOOGLE_PAA_CLUSTERS_PER_RUN);
 

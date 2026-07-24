@@ -33,6 +33,7 @@ export async function generatePdfsForResearchedClusters(supabase: SupabaseClient
     .from("problem_clusters")
     .select("id, representative_text")
     .eq("status", "researched")
+    .not("score", "is", null)
     .order("score", { ascending: false })
     .limit(PDF_PER_RUN);
 

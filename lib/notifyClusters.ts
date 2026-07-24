@@ -14,6 +14,7 @@ export async function notifyTopClusters(supabase: SupabaseClient): Promise<numbe
     .select("id, representative_text, score, source_count, total_engagement")
     .is("telegram_notified_at", null)
     .eq("status", "discovered")
+    .not("score", "is", null)
     .order("score", { ascending: false })
     .limit(CLUSTERS_TO_NOTIFY_PER_RUN);
 

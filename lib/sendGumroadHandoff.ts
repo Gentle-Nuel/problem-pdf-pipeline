@@ -27,6 +27,7 @@ export async function sendGumroadHandoff(supabase: SupabaseClient): Promise<numb
     .select("id, representative_text")
     .eq("status", "approved_for_publish")
     .is("gumroad_handoff_sent_at", null)
+    .not("score", "is", null)
     .order("score", { ascending: false })
     .limit(GUMROAD_HANDOFF_PER_RUN);
 

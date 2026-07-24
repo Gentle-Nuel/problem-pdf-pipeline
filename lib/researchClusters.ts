@@ -9,6 +9,7 @@ export async function researchApprovedClusters(supabase: SupabaseClient): Promis
     .from("problem_clusters")
     .select("id, representative_text")
     .eq("status", "approved")
+    .not("score", "is", null)
     .order("score", { ascending: false })
     .limit(RESEARCH_PER_RUN);
 
