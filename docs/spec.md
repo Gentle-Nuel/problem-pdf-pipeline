@@ -108,7 +108,7 @@ create table pdfs (
 ## Pricing strategy
 - Tiered by research depth/effort: guides backed by fewer sources and a more surface-level fix sit at a lower price point; guides with deeper research (multiple root causes, more thorough step-by-step content) price higher.
 - `research_docs` should carry a rough depth signal (e.g. number of sources consulted, word count) that a simple rule can map to a price tier on the `pdfs.price` column — avoids pricing being decided ad hoc per item.
-- Later: feed actual Gumroad sales data back into cluster scoring, so "problem clusters like the ones that sold" outrank raw engagement score over time. Not needed for MVP.
+- Later: feed actual Gumroad sales data back into cluster scoring, so "problem clusters like the ones that sold" outrank raw engagement score over time. Not needed for MVP. **Verified live (not needed to build yet, just confirmed so it doesn't need re-checking later): Gumroad's webhook system is real** — sales/refund/cancellation events can be pushed to a registered "ping" endpoint, confirmed against official docs, an npm client library, and multiple working GitHub integrations. This is a push, not a poll, which is the right mechanism for this feature when it gets built. Separately, and *not* confirmed: no evidence Gumroad's API exposes buyer messages/reviews (its "Community" per-product chat feature doesn't appear to be API-readable) — a buyer-feedback loop, if wanted later, would need a manual Community-tab check or an email-based flow, not a webhook.
 
 ## Companion blog post pipeline (SEO — see note above)
 
