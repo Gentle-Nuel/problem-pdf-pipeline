@@ -16,7 +16,7 @@ Build order (see spec for detail):
 - [x] 5. Research step (Gemini + Tavily search grounding) (confirmed working live)
 - [x] 6. PDF generation + pricing tiers + disclaimer (confirmed working live, first try)
 - [x] 7. Pre-publish review tap (confirmed working live)
-- [x] 8a. Companion blog draft + humanize pipeline (code in — needs live test, see below)
+- [x] 8a. Companion blog draft + humanize pipeline (confirmed working live, first try)
 - [ ] 8b. Static site deploy
 - [ ] 9. Gumroad publish
 
@@ -210,4 +210,4 @@ Tapping approve hits `api/telegram-webhook.ts`'s new `approve_blog:` handler, wh
 6. Tap it, then check `blog_posts.status` in Supabase — should now read `approved`.
 7. Read through `final_content` for a cluster and sanity-check the humanize pass actually did something — no em dashes, some sentence-length variation, a concrete detail, and critically: no fabricated personal claims ("I've fixed dozens of these...", etc.) — that would be a guardrail violation, not just a style miss, and should be reported back immediately if seen.
 
-Not yet live-tested — code typechecks clean and reuses the same Gemini call pattern already proven in steps 5 and 7 (no new external unknowns like Google's endpoint was), but that's not the same as confirmed.
+**Confirmed working live, first try:** `blogDrafted: 2, blogReviewSent: 2` on the first run. Both `blog_posts` rows landed with `draft_content` and `final_content` populated and a real `pdf_id` link. Telegram previews read genuinely well — real structure, a specific concrete citation (e.g. "NEC 408.4"), varied sentence rhythm, and correctly linked to the actual PDF file rather than a placeholder. No sign of fabricated personal experience or credentials — the humanize pass's guardrail boundary held. Tapped "✅ Approve" on one; `blog_posts.status` correctly flipped to `approved`.
