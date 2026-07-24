@@ -28,6 +28,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const callback = update.callback_query;
   const message = update.message;
 
+  // Temporary — /scrape and /cluster have produced zero visible effect and
+  // zero trace in logs twice in a row, including after confirming the
+  // chat-id-mismatch logging (lib change 627baf5) was live. That rules out
+  // the auth-mismatch theory; logging the raw body removes the guesswork
+  // about what Telegram is actually sending instead of what's assumed.
+  // Remove once /scrape and /cluster are confirmed working.
+  console.log("Incoming Telegram update:", JSON.stringify(req.body));
+
   if (callback?.data?.startsWith("approve:")) {
     await handleApprove(callback);
   } else if (callback?.data?.startsWith("publish:")) {
