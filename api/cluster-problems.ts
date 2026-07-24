@@ -146,8 +146,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // time, not just when this invocation clustered something new.
   const researched = await researchApprovedClusters(supabase);
 
-  // 10. Render PDFs for researched clusters.
-  const drafted = await generatePdfsForResearchedClusters(supabase);
+  // 10. Render PDFs for researched clusters — or route to blog_only if
+  // the research doesn't meet the minimum depth to be a paid product.
+  const { drafted, routedBlogOnly } = await generatePdfsForResearchedClusters(supabase);
 
   // 11. Send drafted PDFs to Telegram for pre-publish review — same
   // "runs every time" reasoning as notify/research/pdf above.
@@ -178,6 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     notified,
     researched,
     drafted,
+    routedBlogOnly,
     reviewSent,
     blogDrafted,
     blogReviewSent,

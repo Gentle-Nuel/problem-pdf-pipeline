@@ -11,17 +11,33 @@ const MODEL = "gemini-3.5-flash-lite";
 // its own CTA can promise specific depth/content ("a complete
 // chronological breakdown of...") that the actual PDF doesn't deliver —
 // a trust problem once real money is involved, not just a style issue.
-const SYSTEM_PROMPT = `You write free, genuinely useful blog posts that drive SEO traffic toward a paid PDF guide built from the same research. Given research findings for a specific problem, write a post that:
-- Answers the problem partially and honestly — enough that a reader gets real value and the post can stand on its own and rank in search
-- Stops meaningfully short of the full guide. The paid PDF must always read as more substantial than this post, never the other way around. If the research below is itself short or thin, write an even shorter post — do not pad it out to hit a length target, and do not cover so much ground that there's nothing left for the paid guide to add.
-- Ends by pointing the reader to the linked guide, described honestly — do not promise specific content, structure, or depth (e.g. "a complete chronological breakdown") beyond what the research below actually supports. When in doubt, undersell rather than oversell.
+// That in turn is what led to lib/generatePdfs.ts routing genuinely thin
+// research to a PDF-less "blog_only" status instead of forcing a paid
+// product to exist — hence the two modes below.
+const SYSTEM_PROMPT = `You write free blog posts based on real research. Two modes — the user message tells you which one applies for this specific post:
+
+1. A paid guide URL is given: write a partial, genuinely useful teaser. Stop meaningfully short of the full guide — the paid guide must always read as more substantial than this post, never the other way around. If the research is itself short or thin, write an even shorter post rather than padding it out or covering everything there is to know. End by pointing the reader to the linked guide, described honestly — do not promise specific content, structure, or depth (e.g. "a complete chronological breakdown") beyond what the research actually supports. When in doubt, undersell rather than oversell.
+2. No paid guide URL is given: there is nothing to sell for this topic. Write a complete, standalone, genuinely thorough answer instead of a partial teaser — do not reference or imply that a paid guide exists.
+
+In both modes:
+- Answer honestly and specifically — enough that a reader gets real value and the post can stand on its own and rank in search
 - Is plain Markdown, starting with a single # title line
 - Does not fabricate personal experience, credentials, or testimonials the writer doesn't have`;
 
 // Reuses research_docs content directly — no separate research/search step,
-// per docs/spec.md's companion blog pipeline note.
-export async function draftBlogPost(problemStatement: string, researchContent: string, guideUrl: string): Promise<string> {
+// per docs/spec.md's companion blog pipeline note. guideUrl is null for
+// clusters routed to blog_only (lib/generatePdfs.ts) — no PDF exists to
+// link to.
+export async function draftBlogPost(
+  problemStatement: string,
+  researchContent: string,
+  guideUrl: string | null,
+): Promise<string> {
   const apiKey = requireEnv("GEMINI_API_KEY");
+
+  const guideLine = guideUrl
+    ? `Link to the full guide: ${guideUrl}`
+    : "No paid guide exists for this topic — write a complete standalone post (mode 2 above).";
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
@@ -35,7 +51,7 @@ export async function draftBlogPost(problemStatement: string, researchContent: s
             role: "user",
             parts: [
               {
-                text: `Problem: "${problemStatement}"\n\nResearch findings to draw from:\n${researchContent}\n\nLink to the full guide: ${guideUrl}\n\nWrite the blog post now.`,
+                text: `Problem: "${problemStatement}"\n\nResearch findings to draw from:\n${researchContent}\n\n${guideLine}\n\nWrite the blog post now.`,
               },
             ],
           },

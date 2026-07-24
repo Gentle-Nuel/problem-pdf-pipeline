@@ -16,7 +16,7 @@ export async function sendBlogPostsForReview(supabase: SupabaseClient): Promise<
 
   const { data: candidates, error } = await supabase
     .from("blog_posts")
-    .select("id, cluster_id, final_content")
+    .select("id, cluster_id, pdf_id, final_content")
     .eq("status", "humanized")
     .is("telegram_sent_at", null);
 
@@ -48,8 +48,15 @@ export async function sendBlogPostsForReview(supabase: SupabaseClient): Promise<
     const content = post.final_content as string;
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
     const preview = content.length > PREVIEW_CHARS ? `${content.slice(0, PREVIEW_CHARS)}…` : content;
+    // Transparency for the builder: a blog_only cluster has no pdf_id, so
+    // there's no PDF review message or Gumroad handoff coming for it —
+    // without this note that'd look like a missing step rather than
+    // intentional (research too thin to be a paid product).
+    const guideNote = post.pdf_id
+      ? ""
+      : "\n<i>No paid guide for this one — research was too thin to be a product on its own.</i>\n";
 
-    const lines = [`<b>New companion blog post draft</b> (${wordCount} words)`, "", escapeHtml(preview)];
+    const lines = [`<b>New companion blog post draft</b> (${wordCount} words)`, guideNote, escapeHtml(preview)];
 
     await sendMessage(chatId, lines.join("\n"), [[{ text: "✅ Approve", callback_data: `approve_blog:${post.id}` }]]);
   }

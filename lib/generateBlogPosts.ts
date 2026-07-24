@@ -6,9 +6,12 @@ import { BLOG_PER_RUN } from "./config.js";
 
 // Runs alongside PDF generation, reusing research_docs content directly —
 // no separate research step, per docs/spec.md's companion blog pipeline.
-// Picks up clusters that already have a PDF (status = 'drafted') but
-// haven't been blog-drafted yet, writes a free companion post pointing at
-// that PDF, runs it through a humanize pass, and stores both stages.
+// Picks up clusters ready for a companion post — either 'drafted' (has a
+// PDF) or 'blog_only' (research was too thin for a paid product, see
+// lib/generatePdfs.ts) — that haven't been blog-drafted yet, writes a free
+// post, runs it through a humanize pass, and stores both stages. A
+// 'blog_only' cluster has no pdfs row at all; draftBlogPost writes a
+// complete standalone post instead of a teaser when that's the case.
 //
 // Deliberately does NOT inject the disclaimer boilerplate into
 // draft_content/final_content — matches how lib/pdfTemplate.ts injects it
@@ -19,7 +22,7 @@ export async function generateBlogPosts(supabase: SupabaseClient): Promise<numbe
   const { data: candidates, error } = await supabase
     .from("problem_clusters")
     .select("id, representative_text")
-    .eq("status", "drafted")
+    .in("status", ["drafted", "blog_only"])
     .is("blog_generated_at", null)
     .order("score", { ascending: false })
     .limit(BLOG_PER_RUN);
@@ -35,7 +38,6 @@ export async function generateBlogPosts(supabase: SupabaseClient): Promise<numbe
       .limit(1);
     if (pdfErr) throw new Error(`Failed to load pdf for cluster ${cluster.id}: ${pdfErr.message}`);
     const pdf = pdfRows?.[0];
-    if (!pdf) throw new Error(`No pdf found for cluster ${cluster.id} despite status=drafted`);
 
     const { data: researchRows, error: researchErr } = await supabase
       .from("research_docs")
@@ -50,7 +52,7 @@ export async function generateBlogPosts(supabase: SupabaseClient): Promise<numbe
     if (!researchContent) throw new Error(`No research_docs content found for cluster ${cluster.id}`);
 
     const title = cluster.representative_text as string;
-    const draft = await draftBlogPost(title, researchContent, pdf.file_url as string);
+    const draft = await draftBlogPost(title, researchContent, (pdf?.file_url as string | undefined) ?? null);
     const final = await humanizeContent(draft);
 
     // Suffix with a short slice of the cluster id rather than retrying on
@@ -61,7 +63,7 @@ export async function generateBlogPosts(supabase: SupabaseClient): Promise<numbe
 
     const { error: insertErr } = await supabase.from("blog_posts").insert({
       cluster_id: cluster.id,
-      pdf_id: pdf.id,
+      pdf_id: pdf?.id ?? null,
       slug,
       draft_content: draft,
       final_content: final,
