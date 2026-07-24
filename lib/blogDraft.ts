@@ -5,9 +5,16 @@ import { requireEnv } from "./env.js";
 // aliases).
 const MODEL = "gemini-3.5-flash-lite";
 
-const SYSTEM_PROMPT = `You write free, genuinely useful blog posts that drive SEO traffic toward a paid PDF guide. Given research findings for a specific problem, write a post that:
+// Confirmed live this needed real constraints, not just "write a partial
+// answer": without them, a blog draft can end up covering more ground
+// than a genuinely thin PDF (nothing left for the paid guide to add), and
+// its own CTA can promise specific depth/content ("a complete
+// chronological breakdown of...") that the actual PDF doesn't deliver —
+// a trust problem once real money is involved, not just a style issue.
+const SYSTEM_PROMPT = `You write free, genuinely useful blog posts that drive SEO traffic toward a paid PDF guide built from the same research. Given research findings for a specific problem, write a post that:
 - Answers the problem partially and honestly — enough that a reader gets real value and the post can stand on its own and rank in search
-- Stops short of the full step-by-step fix, and ends by pointing the reader to the linked guide for the complete walkthrough
+- Stops meaningfully short of the full guide. The paid PDF must always read as more substantial than this post, never the other way around. If the research below is itself short or thin, write an even shorter post — do not pad it out to hit a length target, and do not cover so much ground that there's nothing left for the paid guide to add.
+- Ends by pointing the reader to the linked guide, described honestly — do not promise specific content, structure, or depth (e.g. "a complete chronological breakdown") beyond what the research below actually supports. When in doubt, undersell rather than oversell.
 - Is plain Markdown, starting with a single # title line
 - Does not fabricate personal experience, credentials, or testimonials the writer doesn't have`;
 
